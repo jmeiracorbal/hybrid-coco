@@ -5,7 +5,6 @@
 [![PyPI downloads](https://img.shields.io/pypi/dm/hybrid-coco.svg)](https://pypi.org/project/hybrid-coco/)
 [![Python](https://img.shields.io/pypi/pyversions/hybrid-coco.svg)](https://pypi.org/project/hybrid-coco/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/jmeiracorbal/hybrid-coco.svg?style=social)](https://github.com/jmeiracorbal/hybrid-coco/stargazers)
 [![GitHub issues](https://img.shields.io/github/issues/jmeiracorbal/hybrid-coco.svg)](https://github.com/jmeiracorbal/hybrid-coco/issues)
 
 Local code intelligence for AI agents. Index your codebase once, query it deterministically: **~94% fewer tokens** than grep + cat.
