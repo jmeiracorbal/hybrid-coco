@@ -65,11 +65,26 @@ Traditional = `grep -rn` + `cat`. hybrid-coco = `hc symbol` + `hc query` + `hc f
 
 ### 1. Install
 
+**Option A: One-line installer (recommended)**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jmeiracorbal/hybrid-coco/main/install.sh | bash
 ```
 
-This installs `hc`, configures Claude Code hooks, and adds the awareness file — no Python knowledge required. Requires Python 3.11+ (detects uv, pipx, or pip automatically).
+Installs `hc`, configures Claude Code hooks, and adds the awareness file. Requires Python 3.11+ (detects uv, pipx, or pip automatically).
+
+**Option B: Claude Code plugin**
+
+```bash
+claude plugin marketplace add jmeiracorbal/hybrid-coco
+claude plugin install hybrid-coco@hybrid-coco
+```
+
+Registers the MCP server and hooks automatically. Requires `hc` in PATH — install the package first:
+
+```bash
+pip install hybrid-coco   # or: uv tool install hybrid-coco
+```
 
 ### 2. Index your project and register with Claude Code
 
