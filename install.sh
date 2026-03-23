@@ -64,84 +64,25 @@ if ! command -v hc &>/dev/null; then
 fi
 
 # ── 3. Hook scripts ───────────────────────────────────────────────────────────
+# Source of truth: src/hybrid_coco/assets/hooks/ (bundled with the package).
+# Copied from there — never written inline here.
 mkdir -p "$HOOKS_DIR"
 
-info "Installing hook scripts..."
+info "Installing hook scripts from package assets..."
 
-cat > "$HOOKS_DIR/hc-pre-tool-use.sh" << 'HOOK'
-#!/usr/bin/env bash
-# hybrid-coco PreToolUse hook — advisory only
-# Suggests hc_* tools when agent uses Read/Grep on indexed content
+ASSETS_HOOKS=$("$PYTHON" -c "
+import hybrid_coco, os
+print(os.path.join(os.path.dirname(hybrid_coco.__file__), 'assets', 'hooks'))
+" 2>/dev/null)
 
-command -v jq &>/dev/null || exit 0
-command -v sqlite3 &>/dev/null || exit 0
-
-INPUT=$(cat)
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-
-case "$TOOL_NAME" in
-  Read|Grep) ;;
-  *) exit 0 ;;
-esac
-
-# Find index walking up from cwd (max 4 levels)
-INDEX_DB=""
-for dir in "." ".." "../.." "../../.."; do
-  if [ -f "$dir/.hybrid-coco/index.db" ]; then
-    INDEX_DB=$(cd "$dir" && pwd)/.hybrid-coco/index.db
-    break
-  fi
-done
-[ -n "$INDEX_DB" ] || exit 0
-
-if [ "$TOOL_NAME" = "Read" ]; then
-  FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
-  [ -n "$FILE_PATH" ] || exit 0
-  REL_PATH=$(python3 -c "import os,sys; print(os.path.relpath(sys.argv[1]))" "$FILE_PATH" 2>/dev/null) || exit 0
-  IS_INDEXED=$(sqlite3 "$INDEX_DB" "SELECT 1 FROM files WHERE path='$REL_PATH' LIMIT 1" 2>/dev/null || echo "")
-  if [ "$IS_INDEXED" = "1" ]; then
-    echo "[hybrid-coco] '$REL_PATH' is indexed. Prefer: hc_file_context(\"$REL_PATH\")" >&2
-  fi
+if [ -d "$ASSETS_HOOKS" ]; then
+  cp "$ASSETS_HOOKS/hc-pre-tool-use.sh"  "$HOOKS_DIR/hc-pre-tool-use.sh"
+  cp "$ASSETS_HOOKS/hc-post-tool-use.sh" "$HOOKS_DIR/hc-post-tool-use.sh"
+  chmod +x "$HOOKS_DIR/hc-pre-tool-use.sh" "$HOOKS_DIR/hc-post-tool-use.sh"
+else
+  warn "Package assets not found — hook scripts not installed"
+  warn "Try: pip install --upgrade hybrid-coco"
 fi
-
-if [ "$TOOL_NAME" = "Grep" ]; then
-  PATTERN=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty' 2>/dev/null)
-  [ -n "$PATTERN" ] || exit 0
-  echo "[hybrid-coco] Index available. Prefer: hc_search(\"$PATTERN\")" >&2
-fi
-
-exit 0
-HOOK
-
-cat > "$HOOKS_DIR/hc-post-tool-use.sh" << 'HOOK'
-#!/usr/bin/env bash
-# hybrid-coco PostToolUse hook — keeps index fresh after file writes
-
-command -v jq &>/dev/null || exit 0
-command -v hc &>/dev/null || exit 0
-
-INPUT=$(cat)
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-
-case "$TOOL_NAME" in
-  Write|Edit) ;;
-  *) exit 0 ;;
-esac
-
-# Find project root with hybrid-coco index
-for dir in "." ".." "../.." "../../.."; do
-  if [ -f "$dir/.hybrid-coco/index.db" ]; then
-    PROJECT_ROOT=$(cd "$dir" && pwd)
-    hc update "$PROJECT_ROOT" 2>/dev/null || true
-    exit 0
-  fi
-done
-
-exit 0
-HOOK
-
-chmod +x "$HOOKS_DIR/hc-pre-tool-use.sh"
-chmod +x "$HOOKS_DIR/hc-post-tool-use.sh"
 
 # ── 4. Awareness file ─────────────────────────────────────────────────────────
 info "Installing awareness file..."
