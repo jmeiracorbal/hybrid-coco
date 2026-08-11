@@ -204,3 +204,105 @@ def test_ensure_hc_gitignore_respects_existing_entry(tmp_path: Path):
     gi = tmp_path / ".gitignore"
     gi.write_text("node_modules/\n.hybrid-coco/\n")
     assert ensure_hc_gitignore(tmp_path) is False
+
+
+# ── Test 7: query filters ─────────────────────────────────────────────────────
+
+def test_query_filters_path_lang_pagination(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    src = tmp_path / "src"
+    other = tmp_path / "other"
+    src.mkdir()
+    other.mkdir()
+    (src / "a.py").write_text("def alpha():\n    '''src alpha'''\n    return 1\n")
+    (src / "b.py").write_text("def beta():\n    '''src beta'''\n    return 2\n")
+    (other / "c.py").write_text("def alpha():\n    '''other alpha'''\n    return 3\n")
+
+    index_path(tmp_path)
+    from hybrid_coco.store import Store
+
+    store = Store(get_index_path(tmp_path))
+    try:
+        by_path = store.fts_search("alpha", path="src/")
+        assert len(by_path) == 1
+        assert by_path[0]["path"] == "src/a.py"
+
+        by_lang = store.lookup_symbol("alpha", languages=("python",))
+        assert len(by_lang) == 2
+
+        page0 = store.fts_search("src", path="src/", offset=0, limit=1)
+        page1 = store.fts_search("src", path="src/", offset=1, limit=1)
+        assert len(page0) == 1
+        assert len(page1) == 1
+        assert page0[0]["path"] != page1[0]["path"]
+    finally:
+        store.close()
+
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    r = runner.invoke(main, ["query", "alpha", "--path", "src/"])
+    assert r.exit_code == 0
+    assert "src/a.py" in r.output
+    assert "other/c.py" not in r.output
+
+    r2 = runner.invoke(main, ["symbol", "alpha", "--lang", "python", "--limit", "1"])
+    assert r2.exit_code == 0
+    assert "alpha" in r2.output
+
+    bad = runner.invoke(main, ["query", "alpha", "--offset", "-1"])
+    assert bad.exit_code == 1
+    assert "offset" in bad.output
+
+
+def test_mcp_tool_filters_and_schema(tmp_path: Path):
+    import asyncio
+    from hybrid_coco.server import _parse_filters, build_server
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "a.py").write_text("def alpha():\n    return 1\n")
+    (tmp_path / "b.py").write_text("def alpha():\n    return 2\n")
+    index_path(tmp_path)
+
+    path_f, langs, offset, limit = _parse_filters(
+        path="src/", lang=["python"], offset=0, limit=5
+    )
+    assert path_f == "src/"
+    assert langs == ("python",)
+    assert offset == 0
+    assert limit == 5
+
+    with pytest.raises(ValueError, match="non-empty"):
+        _parse_filters(path="", lang=None, offset=0, limit=5)
+
+    server, store = build_server(tmp_path)
+    try:
+        tools = asyncio.run(server.list_tools())
+        by_name = {t.name: t for t in tools}
+        assert "hc_search" in by_name
+        assert "hc_symbol" in by_name
+        search_schema = by_name["hc_search"].input_schema
+        assert "path" in search_schema["properties"]
+        assert "lang" in search_schema["properties"]
+        assert "offset" in search_schema["properties"]
+        assert "limit" in search_schema["properties"]
+        assert "path" in by_name["hc_symbol"].input_schema["properties"]
+
+        result = asyncio.run(
+            server.call_tool(
+                "hc_search",
+                {"query": "alpha", "path": "src/", "limit": 10},
+            )
+        )
+        if isinstance(result, tuple):
+            content = result[0]
+            text = content[0].text if content else ""
+        elif isinstance(result, str):
+            text = result
+        elif hasattr(result, "content"):
+            text = result.content[0].text
+        else:
+            text = str(result)
+        assert "src/a.py" in text
+        assert "b.py" not in text
+    finally:
+        store.close()

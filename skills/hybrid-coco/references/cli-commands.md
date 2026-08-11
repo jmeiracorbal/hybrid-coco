@@ -6,8 +6,8 @@
 hc index [PATH]          Index PATH (default: cwd). Flag: --exclude PATTERN (repeatable)
 hc update [PATH]         Re-index only files with changed sha256. Flag: --exclude PATTERN
 hc status [PATH]         Index stats (files, symbols by kind, last update)
-hc query <TEXT>          FTS5 search on name, signature, docstring
-hc symbol <NAME>         Lookup by name (exact, then prefix fallback)
+hc query <TEXT>          FTS5 search. Flags: --path, --lang (repeatable), --offset, --limit
+hc symbol <NAME>         Lookup by name (exact, then prefix). Same filter flags as query
 hc file-context <PATH>   All symbols in PATH (relative to cwd). ~97% savings vs cat
 hc serve                 Start MCP server (stdio)
 hc init [PATH]           Index + ensure .hybrid-coco/ in .gitignore + register MCP

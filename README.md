@@ -121,8 +121,10 @@ hc index [PATH] [--exclude PATTERN]...
 hc update [PATH] [--exclude PATTERN]...
                          Re-index only changed files (SHA-256 diff)
 hc status [PATH]         Index stats: files, symbols by kind, last update
-hc query <TEXT>          FTS5 trigram search on name, signature, docstring
-hc symbol <NAME>         Exact name lookup, then prefix fallback
+hc query <TEXT> [--path P] [--lang L]... [--offset N] [--limit N]
+                         FTS5 search; optional path/lang filters and pagination
+hc symbol <NAME> [--path P] [--lang L]... [--offset N] [--limit N]
+                         Exact name lookup, then prefix; same filters as query
 hc file-context <PATH>   All symbols in PATH grouped by kind (~97% savings vs cat)
 hc serve                 Start MCP server (stdio)
 hc init [PATH]           Index + .gitignore entry + register MCP + install hooks

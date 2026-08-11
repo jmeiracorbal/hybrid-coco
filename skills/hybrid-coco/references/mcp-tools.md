@@ -37,9 +37,11 @@ The server is launched by Claude Code from the project root. Index path resoluti
 
 ### `hc_search`
 
-**Input:** `query: str`, `limit?: int = 20`
+**Input:** `query: str`, `path?: str`, `lang?: list[str]`, `offset?: int = 0`, `limit?: int = 20`
 
 FTS5 full-text search over name, signature, and docstring fields. Use for concept or keyword searches when you do not know the exact symbol name.
+
+Filters **AND** together when provided: `path` is a gitignore-style pattern over indexed paths; `lang` matches `files.language` (e.g. `python`, `rust`). Omit a filter for no restriction. Use `offset`/`limit` to page.
 
 **Response example:**
 
@@ -57,9 +59,9 @@ FTS5 full-text search over name, signature, and docstring fields. Use for concep
 
 ### `hc_symbol`
 
-**Input:** `name: str`
+**Input:** `name: str`, `path?: str`, `lang?: list[str]`, `offset?: int = 0`, `limit?: int = 20`
 
-Exact lookup by symbol name, with prefix fallback if no exact match is found. Use when you know the name of the function, class, or variable.
+Exact lookup by symbol name, with prefix fallback if no exact match is found. Same optional `path`/`lang`/`offset`/`limit` filters as `hc_search`.
 
 **Response example:**
 
@@ -115,4 +117,4 @@ Languages: python, rust, typescript
 
 - All responses are plain structured text, not raw JSON. Each response is self-describing and compact.
 - Tools are designed to return minimal, compact output to keep token usage low.
-- Use the `limit` parameter on `hc_search` to reduce response size when needed.
+- Use `path`/`lang` to narrow results; use `offset`/`limit` to page or shrink responses.

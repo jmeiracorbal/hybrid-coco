@@ -14,6 +14,7 @@ import click
 
 from . import __version__
 from .config import get_index_path
+from .filters import DEFAULT_QUERY_LIMIT, validate_languages, validate_paging, validate_path_filter
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
 from .store import Store
 
@@ -26,6 +27,23 @@ def _parse_exclude(exclude: tuple[str, ...]) -> tuple[str, ...]:
         click.echo(f"Error: {exc}", err=True)
         sys.exit(1)
     return exclude
+
+
+def _parse_query_filters(
+    *,
+    path: str | None,
+    lang: tuple[str, ...],
+    offset: int,
+    limit: int,
+) -> tuple[str | None, tuple[str, ...], int, int]:
+    try:
+        path_f = validate_path_filter(path)
+        langs = validate_languages(lang)
+        validate_paging(offset=offset, limit=limit)
+    except ValueError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+    return path_f, langs, offset, limit
 
 # ── Assets ────────────────────────────────────────────────────────────────────
 
@@ -152,13 +170,21 @@ def cmd_status(path: str):
 
 @main.command("query")
 @click.argument("text")
-@click.option("--limit", default=20, show_default=True)
-def cmd_query(text: str, limit: int):
+@click.option("--path", "path_filter", default=None, help="gitignore-style path filter")
+@click.option("--lang", multiple=True, help="Language filter (repeatable), e.g. python")
+@click.option("--offset", default=0, show_default=True, type=int)
+@click.option("--limit", default=DEFAULT_QUERY_LIMIT, show_default=True, type=int)
+def cmd_query(text: str, path_filter: str | None, lang: tuple, offset: int, limit: int):
     """FTS5 search across symbol names, signatures and docstrings."""
+    path_f, langs, offset, limit = _parse_query_filters(
+        path=path_filter, lang=lang, offset=offset, limit=limit
+    )
     root = Path.cwd()
     store = _require_store(root)
     try:
-        results = store.fts_search(text, limit=limit)
+        results = store.fts_search(
+            text, path=path_f, languages=langs, offset=offset, limit=limit
+        )
     finally:
         store.close()
 
@@ -175,12 +201,21 @@ def cmd_query(text: str, limit: int):
 
 @main.command("symbol")
 @click.argument("name")
-def cmd_symbol(name: str):
+@click.option("--path", "path_filter", default=None, help="gitignore-style path filter")
+@click.option("--lang", multiple=True, help="Language filter (repeatable), e.g. python")
+@click.option("--offset", default=0, show_default=True, type=int)
+@click.option("--limit", default=DEFAULT_QUERY_LIMIT, show_default=True, type=int)
+def cmd_symbol(name: str, path_filter: str | None, lang: tuple, offset: int, limit: int):
     """Lookup a symbol by name (exact, then prefix)."""
+    path_f, langs, offset, limit = _parse_query_filters(
+        path=path_filter, lang=lang, offset=offset, limit=limit
+    )
     root = Path.cwd()
     store = _require_store(root)
     try:
-        results = store.lookup_symbol(name)
+        results = store.lookup_symbol(
+            name, path=path_f, languages=langs, offset=offset, limit=limit
+        )
     finally:
         store.close()
 
