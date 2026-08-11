@@ -42,6 +42,23 @@ Before delegating: check Engram for prior context on that phase.
 
 ---
 
+## Release protocol (after every merge to main)
+
+Always bump and align versions for package + Claude/agent surfaces, then tag:
+
+1. Set the same semver in:
+   - `pyproject.toml` (`project.version`)
+   - `src/hybrid_coco/__init__.py` (`__version__` — CLI `hc --version` reads this)
+   - `plugin/.claude-plugin/plugin.json`
+   - `.claude-plugin/marketplace.json`
+   - `ROADMAP.md` package line
+2. Commit on `main` as the project owner (never Cursor Agent): `chore: bump version to X.Y.Z`
+3. Create and push annotated tag `vX.Y.Z` (triggers PyPI + GitHub Release)
+
+Do this after every landed feature/fix merge that ships to users. Persist the same rule in Engram when available.
+
+---
+
 ## Context References
 
 - **Roadmap + phase status**: `ROADMAP.md`

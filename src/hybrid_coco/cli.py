@@ -12,6 +12,7 @@ from pathlib import Path
 
 import click
 
+from . import __version__
 from .config import get_index_path
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
 from .store import Store
@@ -49,7 +50,7 @@ def _require_store(root: Path) -> Store:
 # ── CLI group ─────────────────────────────────────────────────────────────────
 
 @click.group()
-@click.version_option("0.1.0", prog_name="hc")
+@click.version_option(__version__, prog_name="hc")
 def main():
     """hybrid-coco — local code intelligence."""
 
