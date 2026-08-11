@@ -21,7 +21,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Store | SQLite files + symbols + FTS5 trigram |
 | Languages | Python, JavaScript, TypeScript/TSX, Rust |
 | CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `serve`, `init` |
-| MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_status` |
+| MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_status` (path/lang/offset/limit on search & symbol) |
 | Hooks | Blocking PreToolUse (Read/Grep → hc), PostToolUse, SessionStart awareness + incremental update |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 
