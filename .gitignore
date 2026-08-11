@@ -8,6 +8,5 @@ venv/
 .hybrid-coco/
 *.db
 .pytest_cache/
-.claude/settings.json
-.claude/settings.local.json
+.claude/
 scripts/benchmark-results/

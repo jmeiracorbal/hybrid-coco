@@ -52,8 +52,6 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 
 **Exit criteria:** exclude patterns affect indexed set; fresh `hc init` leaves `.hybrid-coco/` ignored; no regression on existing MCP tools.
 
-Spec: `.claude/context/phases/phase-01.md`
-
 ---
 
 ## Phase 02 — Query filters
@@ -66,8 +64,6 @@ Spec: `.claude/context/phases/phase-01.md`
 
 **Exit criteria:** filtered queries return only matching rows; MCP schemas expose the new parameters; tests cover path + lang + pagination.
 
-Spec: `.claude/context/phases/phase-02.md`
-
 ---
 
 ## Phase 03 — Doctor, reset, version alignment
@@ -79,8 +75,6 @@ Spec: `.claude/context/phases/phase-02.md`
 - Single source of truth for version: package, `hc --version`, plugin `marketplace.json` / `plugin.json`
 
 **Exit criteria:** doctor exits non-zero on broken index; reset leaves a reproducible empty state; all surfaced versions match.
-
-Spec: `.claude/context/phases/phase-03.md`
 
 ---
 
@@ -98,8 +92,6 @@ Each language: tree-sitter grammar dependency, `~100`-line parser extracting fun
 
 **Exit criteria:** fixtures parse; `hc index` counts symbols for the new extensions; README language table updated.
 
-Spec: `.claude/context/phases/phase-04.md`
-
 ---
 
 ## Phase 05 — Agent skill owns lifecycle
@@ -112,24 +104,15 @@ Spec: `.claude/context/phases/phase-04.md`
 
 **Exit criteria:** skill text is actionable end-to-end; SessionStart + skill do not fight each other (no double full reindex storms).
 
-Spec: `.claude/context/phases/phase-05.md`
-
 ---
 
 ## Phase 06 — Symbol body / targeted snippet
 
 **Why:** after `hc_file_context` / `hc_symbol`, agents still need a cheap way to read only the matched range.
 
-Options (pick one in the phase spec):
+Preferred design: query-time disk read via `hc_snippet(path, line_start, line_end)` (CLI + MCP). Do not store full file bodies in SQLite by default.
 
-- `hc_snippet(path, line_start, line_end)` — read from disk at query time (no body in DB)
-- Or return symbol body at query time from stored `line_start`/`line_end`
-
-Prefer disk read at query time to keep the DB small and avoid stale bodies.
-
-**Exit criteria:** MCP + CLI can return a bounded code slice; hooks/awareness recommend snippet over full-file Read when lines are known.
-
-Spec: `.claude/context/phases/phase-06.md`
+**Exit criteria:** MCP + CLI can return a bounded code slice; out-of-range / missing file fail explicitly; hooks/awareness recommend snippet over full-file Read when lines are known.
 
 ---
 
@@ -158,6 +141,5 @@ Only after FTS5 + tree-sitter path is complete. Candidate: optional `sqlite-vec`
 
 - Architect (human) prioritizes and accepts phase exit criteria
 - Orchestrator updates this file’s phase **Status** column and Engram after each phase decision
-- Phase specs live under `.claude/context/phases/`; ADRs under `.claude/context/decisions/`
 - PR descriptions and roadmap text: English
 - Commits / PRs: project owner identity — never the cloud agent default author
