@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # hybrid-coco SessionStart hook
 # Ensures ~/.claude/hybrid-coco.md exists so Claude knows to use hc_* tools.
-# Runs once per session — no-op if already installed.
+# If a project index already exists in cwd, runs incremental hc update.
 
 CLAUDE_DIR="${HOME}/.claude"
 AWARENESS="${CLAUDE_DIR}/hybrid-coco.md"
@@ -18,6 +18,11 @@ fi
 if ! grep -q "@hybrid-coco.md" "$CLAUDE_MD" 2>/dev/null; then
   [ -f "$CLAUDE_MD" ] && echo "" >> "$CLAUDE_MD"
   echo "@hybrid-coco.md" >> "$CLAUDE_MD"
+fi
+
+# Incremental refresh when the cwd already has an index (never creates one)
+if [ -f ".hybrid-coco/index.db" ] && command -v hc >/dev/null 2>&1; then
+  hc update . >/dev/null 2>&1 || true
 fi
 
 exit 0

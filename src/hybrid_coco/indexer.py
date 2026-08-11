@@ -6,17 +6,19 @@ import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 import pathspec
 
-from .config import ALWAYS_IGNORE, ensure_index_dir
+from .config import ALWAYS_IGNORE, HC_DIR, ensure_index_dir
 from .parsers import detect_language, parse_file
 from .store import Store
 
 log = logging.getLogger(__name__)
 
 BINARY_CHECK_BYTES = 512
+
+GITIGNORE_HC_ENTRY = f"{HC_DIR}/"
 
 
 def _sha256(data: bytes) -> str:
@@ -31,8 +33,46 @@ def _load_gitignore(root: Path) -> Optional[pathspec.PathSpec]:
     gi = root / ".gitignore"
     if gi.is_file():
         lines = gi.read_text(encoding="utf-8", errors="replace").splitlines()
-        return pathspec.PathSpec.from_lines("gitwildmatch", lines)
+        return pathspec.PathSpec.from_lines("gitignore", lines)
     return None
+
+
+def build_exclude_spec(patterns: Sequence[str]) -> Optional[pathspec.PathSpec]:
+    """Build a pathspec from exclude patterns. Empty sequence → no filter.
+
+    Raises ValueError if any pattern is empty or whitespace-only.
+    """
+    if len(patterns) == 0:
+        return None
+    cleaned: list[str] = []
+    for pattern in patterns:
+        if not pattern or not pattern.strip():
+            raise ValueError("exclude pattern must be non-empty")
+        cleaned.append(pattern)
+    return pathspec.PathSpec.from_lines("gitignore", cleaned)
+
+
+def ensure_hc_gitignore(root: Path) -> bool:
+    """Ensure `.hybrid-coco/` is listed in the project `.gitignore`.
+
+    Returns True when a new entry was written.
+    """
+    gi = root / ".gitignore"
+    entry = GITIGNORE_HC_ENTRY
+
+    if gi.is_file():
+        content = gi.read_text(encoding="utf-8", errors="replace")
+        lines = content.splitlines()
+        for line in lines:
+            stripped = line.strip()
+            if stripped in (entry, HC_DIR, f"/{entry}", f"/{HC_DIR}"):
+                return False
+        sep = "" if (not content or content.endswith("\n")) else "\n"
+        gi.write_text(content + sep + entry + "\n", encoding="utf-8")
+        return True
+
+    gi.write_text(entry + "\n", encoding="utf-8")
+    return True
 
 
 @dataclass
@@ -40,13 +80,14 @@ class IndexResult:
     indexed: int = 0
     skipped: int = 0
     errors: int = 0
+    removed: int = 0
 
 
-def _should_skip_dir(name: str) -> bool:
-    return name in ALWAYS_IGNORE or name.startswith(".")
-
-
-def iter_files(root: Path, gitignore: Optional[pathspec.PathSpec]):
+def iter_files(
+    root: Path,
+    gitignore: Optional[pathspec.PathSpec],
+    exclude: Optional[pathspec.PathSpec],
+):
     """Walk the tree, yielding Path objects for indexable files."""
     for item in sorted(root.rglob("*")):
         if not item.is_file():
@@ -61,22 +102,30 @@ def iter_files(root: Path, gitignore: Optional[pathspec.PathSpec]):
                 break
         if skip:
             continue
+        rel_str = str(rel)
         # Respect .gitignore
-        if gitignore and gitignore.match_file(str(rel)):
+        if gitignore and gitignore.match_file(rel_str):
+            continue
+        if exclude and exclude.match_file(rel_str):
             continue
         yield item
 
 
-def index_path(root: Path, force: bool = False) -> IndexResult:
+def index_path(
+    root: Path,
+    force: bool = False,
+    exclude: Sequence[str] = (),
+) -> IndexResult:
     """Index all supported files under root (incremental unless force=True)."""
     root = root.resolve()
+    exclude_spec = build_exclude_spec(exclude)
     db_path = ensure_index_dir(root)
     store = Store(db_path)
     gitignore = _load_gitignore(root)
     result = IndexResult()
 
     try:
-        for filepath in iter_files(root, gitignore):
+        for filepath in iter_files(root, gitignore, exclude_spec):
             rel = str(filepath.relative_to(root))
             try:
                 data = filepath.read_bytes()
@@ -107,6 +156,13 @@ def index_path(root: Path, force: bool = False) -> IndexResult:
             store.insert_symbols(file_id, symbols)
             result.indexed += 1
             log.debug("Indexed %s (%d symbols)", rel, len(symbols))
+
+        if exclude_spec is not None:
+            for row in store.all_files():
+                path = row["path"]
+                if exclude_spec.match_file(path):
+                    store.delete_file(path)
+                    result.removed += 1
 
     finally:
         store.close()

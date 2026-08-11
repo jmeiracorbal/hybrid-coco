@@ -17,20 +17,20 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 
 | Area | State |
 |------|--------|
-| Indexer | Incremental SHA-256 walk, gitignore-aware |
+| Indexer | Incremental SHA-256 walk, gitignore-aware, `--exclude` patterns |
 | Store | SQLite files + symbols + FTS5 trigram |
 | Languages | Python, JavaScript, TypeScript/TSX, Rust |
 | CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `serve`, `init` |
 | MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_status` |
-| Hooks | Blocking PreToolUse (Read/Grep → hc), PostToolUse, SessionStart awareness |
+| Hooks | Blocking PreToolUse (Read/Grep → hc), PostToolUse, SessionStart awareness + incremental update |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 
 ## Phase overview
 
 | Phase | Title | Status |
 |-------|--------|--------|
-| 01 | Index hygiene & CLI completeness | **next** |
-| 02 | Query filters (path, language, pagination) | pending |
+| 01 | Index hygiene & CLI completeness | **done** |
+| 02 | Query filters (path, language, pagination) | **next** |
 | 03 | Doctor, reset, version alignment | pending |
 | 04 | Language coverage (Go, Java, then C/C++) | pending |
 | 05 | Agent skill owns lifecycle | pending |

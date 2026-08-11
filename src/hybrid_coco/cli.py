@@ -13,8 +13,18 @@ from pathlib import Path
 import click
 
 from .config import get_index_path
-from .indexer import index_path
+from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
 from .store import Store
+
+
+def _parse_exclude(exclude: tuple[str, ...]) -> tuple[str, ...]:
+    """Validate --exclude patterns; exit on empty/whitespace entries."""
+    try:
+        build_exclude_spec(exclude)
+    except ValueError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+    return exclude
 
 # ── Assets ────────────────────────────────────────────────────────────────────
 
@@ -48,31 +58,46 @@ def main():
 
 @main.command("index")
 @click.argument("path", default=".", type=click.Path(exists=True, file_okay=False))
-@click.option("--exclude", multiple=True, help="Additional patterns to exclude (not yet wired)")
+@click.option(
+    "--exclude",
+    multiple=True,
+    help="Additional gitignore-style patterns to exclude (repeatable)",
+)
 @click.option("--verbose", "-v", is_flag=True)
 def cmd_index(path: str, exclude: tuple, verbose: bool):
     """Index PATH (default: current directory)."""
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    patterns = _parse_exclude(exclude)
     root = Path(path).resolve()
     click.echo(f"Indexing {root} …", err=True)
-    result = index_path(root)
-    click.echo(
-        f"Done. Indexed: {result.indexed}  Skipped (unchanged): {result.skipped}  Errors: {result.errors}"
+    result = index_path(root, exclude=patterns)
+    msg = (
+        f"Done. Indexed: {result.indexed}  Skipped (unchanged): {result.skipped}  "
+        f"Errors: {result.errors}"
     )
+    if result.removed:
+        msg += f"  Removed: {result.removed}"
+    click.echo(msg)
 
 
 # ── hc update ────────────────────────────────────────────────────────────────
 
 @main.command("update")
 @click.argument("path", default=".", type=click.Path(exists=True, file_okay=False))
+@click.option(
+    "--exclude",
+    multiple=True,
+    help="Additional gitignore-style patterns to exclude (repeatable)",
+)
 @click.option("--verbose", "-v", is_flag=True)
-def cmd_update(path: str, verbose: bool):
+def cmd_update(path: str, exclude: tuple, verbose: bool):
     """Re-index only changed files in PATH."""
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    patterns = _parse_exclude(exclude)
     root = Path(path).resolve()
     db = get_index_path(root)
     if not db.exists():
@@ -80,10 +105,14 @@ def cmd_update(path: str, verbose: bool):
         sys.exit(1)
 
     click.echo(f"Updating {root} …", err=True)
-    result = index_path(root, force=False)
-    click.echo(
-        f"Done. Re-indexed: {result.indexed}  Unchanged: {result.skipped}  Errors: {result.errors}"
+    result = index_path(root, force=False, exclude=patterns)
+    msg = (
+        f"Done. Re-indexed: {result.indexed}  Unchanged: {result.skipped}  "
+        f"Errors: {result.errors}"
     )
+    if result.removed:
+        msg += f"  Removed: {result.removed}"
+    click.echo(msg)
 
 
 # ── hc status ────────────────────────────────────────────────────────────────
@@ -372,7 +401,7 @@ def cmd_init(path: str, global_config: bool):
 
     # Step 1: index
     click.echo(f"Indexing {root} …")
-    result = index_path(root)
+    index_path(root)
     db = get_index_path(root)
 
     # Count total symbols now
@@ -384,6 +413,11 @@ def cmd_init(path: str, global_config: bool):
 
     click.echo(f"  ✓ {stats['files']} files indexed, {stats['symbols']} symbols")
     click.echo(f"  ✓ Index: {db.relative_to(root)}")
+
+    if ensure_hc_gitignore(root):
+        click.echo(f"  ✓ Added {root / '.gitignore'} entry for .hybrid-coco/")
+    else:
+        click.echo("  ✓ .hybrid-coco/ already in .gitignore")
     click.echo()
 
     # Step 2: register MCP in project settings

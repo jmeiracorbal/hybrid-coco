@@ -89,6 +89,16 @@ class Store:
         self._conn.execute("DELETE FROM symbols WHERE file_id = ?", (file_id,))
         self._conn.commit()
 
+    def delete_file(self, path: str) -> bool:
+        """Delete a file row and its symbols. Returns True if a row existed."""
+        row = self.get_file(path)
+        if row is None:
+            return False
+        self.delete_file_symbols(row["id"])
+        self._conn.execute("DELETE FROM files WHERE id = ?", (row["id"],))
+        self._conn.commit()
+        return True
+
     # ── Symbol operations ────────────────────────────────────────────────────
 
     def insert_symbols(self, file_id: int, symbols: list[Symbol]):

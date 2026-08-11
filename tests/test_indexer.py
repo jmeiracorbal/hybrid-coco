@@ -108,8 +108,6 @@ def test_cli_status(fixture_dir: Path):
     assert "Updated:" in result.output
 
 
-# ── Test 4: hc query ──────────────────────────────────────────────────────────
-
 def test_cli_query(fixture_dir: Path, monkeypatch: pytest.MonkeyPatch):
     index_path(fixture_dir)
     monkeypatch.chdir(fixture_dir)
@@ -121,3 +119,88 @@ def test_cli_query(fixture_dir: Path, monkeypatch: pytest.MonkeyPatch):
     result2 = runner.invoke(main, ["query", "standalone"])
     assert result2.exit_code == 0
     assert "standalone" in result2.output
+
+
+# ── Test 5: --exclude ─────────────────────────────────────────────────────────
+
+def test_exclude_skips_matching_files(fixture_dir: Path):
+    vendor = fixture_dir / "vendor"
+    vendor.mkdir()
+    (vendor / "lib.py").write_text("def vendored():\n    return 1\n")
+
+    result = index_path(fixture_dir, exclude=("vendor/**",))
+    assert result.indexed == 1
+    assert result.errors == 0
+
+    from hybrid_coco.store import Store
+    store = Store(get_index_path(fixture_dir))
+    try:
+        assert store.lookup_symbol("Greeter")
+        assert not store.lookup_symbol("vendored")
+        assert store.stats()["files"] == 1
+    finally:
+        store.close()
+
+
+def test_exclude_removes_previously_indexed(fixture_dir: Path):
+    vendor = fixture_dir / "vendor"
+    vendor.mkdir()
+    (vendor / "lib.py").write_text("def vendored():\n    return 1\n")
+
+    index_path(fixture_dir)
+    from hybrid_coco.store import Store
+    store = Store(get_index_path(fixture_dir))
+    try:
+        assert store.lookup_symbol("vendored")
+    finally:
+        store.close()
+
+    result = index_path(fixture_dir, exclude=("vendor/**",))
+    assert result.removed == 1
+
+    store = Store(get_index_path(fixture_dir))
+    try:
+        assert not store.lookup_symbol("vendored")
+        assert store.stats()["files"] == 1
+    finally:
+        store.close()
+
+
+def test_exclude_empty_pattern_fails(fixture_dir: Path):
+    runner = CliRunner()
+    result = runner.invoke(main, ["index", str(fixture_dir), "--exclude", ""])
+    assert result.exit_code == 1
+    assert "non-empty" in result.output
+
+
+# ── Test 6: hc init writes .gitignore ─────────────────────────────────────────
+
+def test_init_adds_hybrid_coco_gitignore(fixture_dir: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "hybrid_coco.cli._install_global",
+        lambda claude_dir: {
+            "awareness_written": True,
+            "claude_md_updated": True,
+            "hooks_installed": True,
+            "settings_patched": True,
+        },
+    )
+    runner = CliRunner()
+    result = runner.invoke(main, ["init", str(fixture_dir)])
+    assert result.exit_code == 0
+
+    gi = (fixture_dir / ".gitignore").read_text(encoding="utf-8")
+    assert ".hybrid-coco/" in gi
+
+    # idempotent
+    result2 = runner.invoke(main, ["init", str(fixture_dir)])
+    assert result2.exit_code == 0
+    assert (fixture_dir / ".gitignore").read_text(encoding="utf-8").count(".hybrid-coco/") == 1
+
+
+def test_ensure_hc_gitignore_respects_existing_entry(tmp_path: Path):
+    from hybrid_coco.indexer import ensure_hc_gitignore
+
+    gi = tmp_path / ".gitignore"
+    gi.write_text("node_modules/\n.hybrid-coco/\n")
+    assert ensure_hc_gitignore(tmp_path) is False
