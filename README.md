@@ -116,15 +116,19 @@ The hooks will remind you (via stderr) whenever Claude is about to read an index
 ## CLI reference
 
 ```
-hc index [PATH]          Index PATH (default: cwd)
-hc update [PATH]         Re-index only changed files (SHA-256 diff)
+hc index [PATH] [--exclude PATTERN]...
+                         Index PATH (default: cwd); optional exclude patterns
+hc update [PATH] [--exclude PATTERN]...
+                         Re-index only changed files (SHA-256 diff)
 hc status [PATH]         Index stats: files, symbols by kind, last update
 hc query <TEXT>          FTS5 trigram search on name, signature, docstring
 hc symbol <NAME>         Exact name lookup, then prefix fallback
 hc file-context <PATH>   All symbols in PATH grouped by kind (~97% savings vs cat)
 hc serve                 Start MCP server (stdio)
-hc init [PATH]           Index + register MCP + install hooks
+hc init [PATH]           Index + .gitignore entry + register MCP + install hooks
 ```
+
+`--exclude` accepts gitignore-style patterns and may be repeated.
 
 ## Supported languages
 
