@@ -5,8 +5,16 @@ from __future__ import annotations
 import sqlite3
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
+from .filters import (
+    DEFAULT_QUERY_LIMIT,
+    matches_path,
+    path_filter_spec,
+    validate_languages,
+    validate_paging,
+    validate_path_filter,
+)
 from .parsers.base import Symbol
 
 SCHEMA = """
@@ -138,44 +146,85 @@ class Store:
             "last_indexed": last_indexed,
         }
 
-    def lookup_symbol(self, name: str) -> list[dict]:
+    def _apply_result_filters(
+        self,
+        rows: list[sqlite3.Row],
+        *,
+        path: Optional[str],
+        languages: Sequence[str],
+        offset: int,
+        limit: int,
+    ) -> list[dict]:
+        path_pat = validate_path_filter(path)
+        langs = validate_languages(languages)
+        validate_paging(offset=offset, limit=limit)
+
+        results = [dict(r) for r in rows]
+        if langs:
+            lang_set = set(langs)
+            results = [
+                r for r in results
+                if r.get("language") is not None and str(r["language"]).lower() in lang_set
+            ]
+        if path_pat is not None:
+            spec = path_filter_spec(path_pat)
+            results = [r for r in results if matches_path(r["path"], spec)]
+        return results[offset : offset + limit]
+
+    def lookup_symbol(
+        self,
+        name: str,
+        *,
+        path: Optional[str] = None,
+        languages: Sequence[str] = (),
+        offset: int = 0,
+        limit: int = DEFAULT_QUERY_LIMIT,
+    ) -> list[dict]:
         """Exact name lookup (case-insensitive), then prefix fallback."""
         rows = self._conn.execute(
             """SELECT s.*, f.path, f.language FROM symbols s
                JOIN files f ON f.id = s.file_id
                WHERE lower(s.name) = lower(?)
-               ORDER BY s.kind, f.path, s.line_start
-               LIMIT 20""",
+               ORDER BY s.kind, f.path, s.line_start""",
             (name,),
         ).fetchall()
         if not rows:
-            # prefix fallback
             rows = self._conn.execute(
                 """SELECT s.*, f.path, f.language FROM symbols s
                    JOIN files f ON f.id = s.file_id
                    WHERE lower(s.name) LIKE lower(?) || '%'
-                   ORDER BY s.kind, f.path, s.line_start
-                   LIMIT 20""",
+                   ORDER BY s.kind, f.path, s.line_start""",
                 (name,),
             ).fetchall()
-        return [dict(r) for r in rows]
+        return self._apply_result_filters(
+            rows, path=path, languages=languages, offset=offset, limit=limit
+        )
 
-    def fts_search(self, query: str, limit: int = 20) -> list[dict]:
+    def fts_search(
+        self,
+        query: str,
+        *,
+        path: Optional[str] = None,
+        languages: Sequence[str] = (),
+        offset: int = 0,
+        limit: int = DEFAULT_QUERY_LIMIT,
+    ) -> list[dict]:
         """FTS5 trigram search over symbols."""
         try:
             rows = self._conn.execute(
-                """SELECT s.*, f.path FROM symbols s
+                """SELECT s.*, f.path, f.language FROM symbols s
                    JOIN files f ON f.id = s.file_id
                    WHERE s.id IN (
                        SELECT rowid FROM symbols_fts WHERE symbols_fts MATCH ?
                    )
-                   ORDER BY f.path, s.line_start
-                   LIMIT ?""",
-                (query, limit),
+                   ORDER BY f.path, s.line_start""",
+                (query,),
             ).fetchall()
-            return [dict(r) for r in rows]
         except sqlite3.OperationalError:
             return []
+        return self._apply_result_filters(
+            rows, path=path, languages=languages, offset=offset, limit=limit
+        )
 
     def file_context(self, path: str) -> dict | None:
         """Return all symbols for a file (relative path). None if file not indexed."""

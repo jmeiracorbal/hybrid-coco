@@ -5,22 +5,49 @@ from __future__ import annotations
 import datetime
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Optional, Union
 
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp import types
+from mcp.server import MCPServer
 
 from .config import get_index_path
+from .filters import (
+    DEFAULT_QUERY_LIMIT,
+    validate_languages,
+    validate_paging,
+    validate_path_filter,
+)
 from .store import Store
 
 
 def _require_store(root: Path) -> Store:
     db = get_index_path(root)
     if not db.exists():
-        print(f"No index found. Run: hc index .", file=sys.stderr)
+        print("No index found. Run: hc index .", file=sys.stderr)
         sys.exit(1)
     return Store(db)
+
+
+def _normalize_lang(lang: Union[str, list[str], None]) -> tuple[str, ...]:
+    if lang is None:
+        return ()
+    if isinstance(lang, str):
+        return validate_languages((lang,))
+    if isinstance(lang, list):
+        return validate_languages(tuple(str(x) for x in lang))
+    raise ValueError("lang must be a string or array of strings")
+
+
+def _parse_filters(
+    *,
+    path: Optional[str],
+    lang: Union[str, list[str], None],
+    offset: int,
+    limit: int,
+) -> tuple[Optional[str], tuple[str, ...], int, int]:
+    path_f = validate_path_filter(path)
+    langs = _normalize_lang(lang)
+    validate_paging(offset=offset, limit=limit)
+    return path_f, langs, offset, limit
 
 
 # ── Response formatters ───────────────────────────────────────────────────────
@@ -78,8 +105,12 @@ def _fmt_file_context(path: str, data: dict | None) -> str:
         if k not in seen:
             ordered_kinds.append(k)
 
-    PLURAL = {"class": "Classes", "function": "Functions", "method": "Methods",
-               "import": "Imports"}
+    PLURAL = {
+        "class": "Classes",
+        "function": "Functions",
+        "method": "Methods",
+        "import": "Imports",
+    }
     for kind in ordered_kinds:
         group = by_kind[kind]
         label = PLURAL.get(kind, kind.capitalize() + "s")
@@ -107,7 +138,6 @@ def _fmt_status(stats: dict, db: Path) -> str:
         datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
         if ts else "never"
     )
-    langs = ", ".join(sorted(by_kind.keys())) or "none"
     return (
         f"Index: {db}\n"
         f"Files:   {stats['files']} indexed\n"
@@ -118,104 +148,84 @@ def _fmt_status(stats: dict, db: Path) -> str:
 
 # ── Server factory ────────────────────────────────────────────────────────────
 
-def build_server(root: Path) -> tuple[Server, Store]:
+def build_server(root: Path) -> tuple[MCPServer, Store]:
     store = _require_store(root)
     db = get_index_path(root)
-    server = Server("hybrid-coco")
+    server = MCPServer("hybrid-coco")
 
-    @server.list_tools()
-    async def list_tools() -> list[types.Tool]:
-        return [
-            types.Tool(
-                name="hc_search",
-                description="FTS5 search over symbol names, signatures and docstrings.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string", "description": "Search query"},
-                        "limit": {"type": "integer", "description": "Max results", "default": 20},
-                    },
-                    "required": ["query"],
-                },
-            ),
-            types.Tool(
-                name="hc_symbol",
-                description="Exact (then prefix) symbol lookup by name.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "Symbol name"},
-                    },
-                    "required": ["name"],
-                },
-            ),
-            types.Tool(
-                name="hc_file_context",
-                description="All symbols in a specific file (path relative to project root).",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "description": "Relative file path"},
-                    },
-                    "required": ["path"],
-                },
-            ),
-            types.Tool(
-                name="hc_status",
-                description="Index status: file count, symbol count, last update.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                },
-            ),
-        ]
+    @server.tool(
+        name="hc_search",
+        description=(
+            "FTS5 search over symbol names, signatures and docstrings. "
+            "Optional path/lang filters AND together; use offset/limit to page."
+        ),
+    )
+    async def hc_search(
+        query: str,
+        path: Optional[str] = None,
+        lang: Optional[list[str]] = None,
+        offset: int = 0,
+        limit: int = DEFAULT_QUERY_LIMIT,
+    ) -> str:
+        try:
+            path_f, langs, offset_v, limit_v = _parse_filters(
+                path=path, lang=lang, offset=offset, limit=limit
+            )
+            results = store.fts_search(
+                query, path=path_f, languages=langs, offset=offset_v, limit=limit_v
+            )
+            return _fmt_search(query, results)
+        except (ValueError, TypeError) as exc:
+            return f"Error: {exc}"
 
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
-        if name == "hc_search":
-            query = arguments["query"]
-            limit = int(arguments.get("limit", 20))
-            results = store.fts_search(query, limit=limit)
-            text = _fmt_search(query, results)
+    @server.tool(
+        name="hc_symbol",
+        description=(
+            "Exact (then prefix) symbol lookup by name. "
+            "Optional path/lang filters AND together; use offset/limit to page."
+        ),
+    )
+    async def hc_symbol(
+        name: str,
+        path: Optional[str] = None,
+        lang: Optional[list[str]] = None,
+        offset: int = 0,
+        limit: int = DEFAULT_QUERY_LIMIT,
+    ) -> str:
+        try:
+            path_f, langs, offset_v, limit_v = _parse_filters(
+                path=path, lang=lang, offset=offset, limit=limit
+            )
+            results = store.lookup_symbol(
+                name, path=path_f, languages=langs, offset=offset_v, limit=limit_v
+            )
+            return _fmt_symbol(name, results)
+        except (ValueError, TypeError) as exc:
+            return f"Error: {exc}"
 
-        elif name == "hc_symbol":
-            sym_name = arguments["name"]
-            results = store.lookup_symbol(sym_name)
-            text = _fmt_symbol(sym_name, results)
+    @server.tool(
+        name="hc_file_context",
+        description="All symbols in a specific file (path relative to project root).",
+    )
+    async def hc_file_context(path: str) -> str:
+        data = store.file_context(path)
+        return _fmt_file_context(path, data)
 
-        elif name == "hc_file_context":
-            path = arguments["path"]
-            data = store.file_context(path)
-            text = _fmt_file_context(path, data)
-
-        elif name == "hc_status":
-            stats = store.stats()
-            text = _fmt_status(stats, db)
-
-        else:
-            text = f"Unknown tool: {name}"
-
-        return [types.TextContent(type="text", text=text)]
+    @server.tool(
+        name="hc_status",
+        description="Index status: file count, symbol count, last update.",
+    )
+    async def hc_status() -> str:
+        stats = store.stats()
+        return _fmt_status(stats, db)
 
     return server, store
 
 
 def run_server(root: Path) -> None:
     """Start MCP stdio server for the index at root."""
-    import asyncio
-
     server, store = build_server(root)
-
-    async def _run():
-        try:
-            async with stdio_server() as (read_stream, write_stream):
-                await server.run(
-                    read_stream,
-                    write_stream,
-                    server.create_initialization_options(),
-                )
-        finally:
-            store.close()
-
-    asyncio.run(_run())
+    try:
+        server.run(transport="stdio")
+    finally:
+        store.close()

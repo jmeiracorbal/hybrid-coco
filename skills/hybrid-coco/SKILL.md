@@ -66,12 +66,12 @@ Run this from the project root (where `.hybrid-coco/index.db` lives). The server
 
 ### Tool details
 
-**`hc_symbol(name: str)`**
+**`hc_symbol(name: str, path?: str, lang?: list[str], offset?: int, limit?: int)`**
 Exact lookup by symbol name, with prefix fallback. Returns location, signature, and docstring.
-Use when you know the name of a function, class, or variable you are looking for.
+Optional filters AND together (`path` gitignore-style, `lang` e.g. `["python"]`). Use when you know the name.
 
-**`hc_search(query: str, limit?: int = 20)`**
-FTS5 full-text search over name, signature, and docstring fields. Use when you have a concept or keyword but not the exact name.
+**`hc_search(query: str, path?: str, lang?: list[str], offset?: int, limit?: int = 20)`**
+FTS5 full-text search over name, signature, and docstring fields. Same optional filters and pagination as `hc_symbol`.
 
 **`hc_file_context(path: str)`**
 Returns all symbols in a file grouped by kind (functions, classes, imports), with line numbers and signatures. Use this before reading a file — it gives structural context in a fraction of the tokens.

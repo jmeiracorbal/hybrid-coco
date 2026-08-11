@@ -26,8 +26,8 @@ Need to read a full file?
 | Tool | Use when |
 |---|---|
 | `hc_file_context("path")` | Before any Read — get all symbols, signatures, line numbers |
-| `hc_search("query")` | Before any Grep — FTS5 search over names, signatures, docstrings |
-| `hc_symbol("name")` | Exact/prefix symbol lookup — get file + line immediately |
+| `hc_search("query", path?, lang?, offset?, limit?)` | Before any Grep — FTS5 search; optional path/lang filters AND together |
+| `hc_symbol("name", path?, lang?, offset?, limit?)` | Exact/prefix symbol lookup; same optional filters |
 | `hc_status()` | Check what's indexed before exploring |
 
 ## The two-step Read pattern

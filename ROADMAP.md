@@ -30,8 +30,8 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Phase | Title | Status |
 |-------|--------|--------|
 | 01 | Index hygiene & CLI completeness | **done** |
-| 02 | Query filters (path, language, pagination) | **next** |
-| 03 | Doctor, reset, version alignment | pending |
+| 02 | Query filters (path, language, pagination) | **done** |
+| 03 | Doctor, reset, version alignment | **next** |
 | 04 | Language coverage (Go, Java, then C/C++) | pending |
 | 05 | Agent skill owns lifecycle | pending |
 | 06 | Symbol body / targeted snippet | pending |
