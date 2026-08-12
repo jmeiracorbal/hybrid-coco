@@ -294,6 +294,55 @@ def cmd_serve():
     run_server(Path.cwd())
 
 
+# ── hc doctor ────────────────────────────────────────────────────────────────
+
+@main.command("doctor")
+@click.argument("path", default=".", type=click.Path(exists=True, file_okay=False))
+def cmd_doctor(path: str):
+    """Run diagnostics: index, schema, languages, MCP/hooks, version alignment."""
+    from .doctor import format_report, run_doctor
+
+    root = Path(path).resolve()
+    report = run_doctor(root)
+    click.echo(format_report(report))
+    if not report.ok:
+        sys.exit(1)
+
+
+# ── hc reset ─────────────────────────────────────────────────────────────────
+
+@main.command("reset")
+@click.argument("path", default=".", type=click.Path(exists=True, file_okay=False))
+@click.option("-f", "--force", is_flag=True, help="Skip confirmation prompt")
+@click.option(
+    "--all",
+    "wipe_all",
+    is_flag=True,
+    help="Also remove hybrid-coco MCP entry from project .claude/settings.json",
+)
+def cmd_reset(path: str, force: bool, wipe_all: bool):
+    """Delete the local index database (and optionally project MCP settings)."""
+    from .doctor import reset_index
+
+    root = Path(path).resolve()
+    db = get_index_path(root)
+    if not force:
+        parts = [f"Delete index at {db}"]
+        if wipe_all:
+            parts.append(f"and hybrid-coco MCP entry in {root / '.claude' / 'settings.json'}")
+        click.confirm(" ".join(parts) + "?", abort=True)
+
+    try:
+        actions = reset_index(root, wipe_settings=wipe_all)
+    except ValueError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
+    for line in actions:
+        click.echo(f"  ✓ {line}")
+    click.echo("Done. Run: hc index " + str(root))
+
+
 # ── hc init ──────────────────────────────────────────────────────────────────
 
 MCP_ENTRY = {

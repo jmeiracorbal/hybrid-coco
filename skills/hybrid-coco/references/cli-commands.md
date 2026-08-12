@@ -10,6 +10,8 @@ hc query <TEXT>          FTS5 search. Flags: --path, --lang (repeatable), --offs
 hc symbol <NAME>         Lookup by name (exact, then prefix). Same filter flags as query
 hc file-context <PATH>   All symbols in PATH (relative to cwd). ~97% savings vs cat
 hc serve                 Start MCP server (stdio)
+hc doctor [PATH]         Diagnostics (index/schema/languages/MCP/hooks/versions)
+hc reset [PATH]          Delete index DB. Flags: -f, --all (also drop project MCP entry)
 hc init [PATH]           Index + ensure .hybrid-coco/ in .gitignore + register MCP
 ```
 
