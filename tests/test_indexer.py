@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import textwrap
 from pathlib import Path
@@ -204,6 +205,72 @@ def test_ensure_hc_gitignore_respects_existing_entry(tmp_path: Path):
     gi = tmp_path / ".gitignore"
     gi.write_text("node_modules/\n.hybrid-coco/\n")
     assert ensure_hc_gitignore(tmp_path) is False
+
+
+# ── Test 8: doctor + reset ────────────────────────────────────────────────────
+
+def test_doctor_fails_without_index(tmp_path: Path):
+    runner = CliRunner()
+    result = runner.invoke(main, ["doctor", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "[fail] index:" in result.output
+    assert "FAILED" in result.output
+
+
+def test_doctor_ok_with_index(fixture_dir: Path):
+    index_path(fixture_dir)
+    runner = CliRunner()
+    result = runner.invoke(main, ["doctor", str(fixture_dir)])
+    assert result.exit_code == 0
+    assert "[ok] index:" in result.output
+    assert "[ok] schema:" in result.output
+    assert "[ok] languages:" in result.output
+    assert "python" in result.output
+    assert "[ok] version:" in result.output
+    assert "[hint] gtk-ai:" in result.output
+    assert "OK" in result.output
+
+
+def test_reset_removes_index(fixture_dir: Path):
+    index_path(fixture_dir)
+    db = get_index_path(fixture_dir)
+    assert db.exists()
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["reset", str(fixture_dir), "-f"])
+    assert result.exit_code == 0
+    assert not db.exists()
+    assert not (fixture_dir / ".hybrid-coco").exists()
+
+    # re-index works after reset
+    r2 = index_path(fixture_dir)
+    assert r2.indexed == 1
+    assert get_index_path(fixture_dir).exists()
+
+
+def test_reset_all_removes_mcp_entry(fixture_dir: Path):
+    index_path(fixture_dir)
+    settings = fixture_dir / ".claude" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        '{"mcpServers": {"hybrid-coco": {"command": "hc"}, "other": {"command": "x"}}}\n',
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["reset", str(fixture_dir), "-f", "--all"])
+    assert result.exit_code == 0
+    data = json.loads(settings.read_text(encoding="utf-8"))
+    assert "hybrid-coco" not in data["mcpServers"]
+    assert "other" in data["mcpServers"]
+
+
+def test_reset_requires_confirmation_without_force(fixture_dir: Path):
+    index_path(fixture_dir)
+    runner = CliRunner()
+    result = runner.invoke(main, ["reset", str(fixture_dir)], input="n\n")
+    assert result.exit_code != 0
+    assert get_index_path(fixture_dir).exists()
 
 
 # ── Test 7: query filters ─────────────────────────────────────────────────────

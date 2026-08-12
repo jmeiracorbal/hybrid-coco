@@ -126,6 +126,9 @@ hc query <TEXT> [--path P] [--lang L]... [--offset N] [--limit N]
 hc symbol <NAME> [--path P] [--lang L]... [--offset N] [--limit N]
                          Exact name lookup, then prefix; same filters as query
 hc file-context <PATH>   All symbols in PATH grouped by kind (~97% savings vs cat)
+hc doctor [PATH]         Diagnostics: index, schema, languages, MCP/hooks, versions
+hc reset [PATH] [-f] [--all]
+                         Delete index DB; --all also drops project MCP entry
 hc serve                 Start MCP server (stdio)
 hc init [PATH]           Index + .gitignore entry + register MCP + install hooks
 ```

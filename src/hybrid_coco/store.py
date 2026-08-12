@@ -146,6 +146,23 @@ class Store:
             "last_indexed": last_indexed,
         }
 
+    def languages(self) -> list[tuple[str, int]]:
+        """Return (language, file_count) pairs ordered by count desc."""
+        rows = self._conn.execute(
+            """SELECT language, COUNT(*) AS n FROM files
+               WHERE language IS NOT NULL
+               GROUP BY language ORDER BY n DESC"""
+        ).fetchall()
+        return [(row["language"], row["n"]) for row in rows]
+
+    def fts_ready(self) -> bool:
+        """Return True if the FTS5 table accepts a count query."""
+        try:
+            self._conn.execute("SELECT count(*) FROM symbols_fts").fetchone()
+            return True
+        except sqlite3.Error:
+            return False
+
     def _apply_result_filters(
         self,
         rows: list[sqlite3.Row],
