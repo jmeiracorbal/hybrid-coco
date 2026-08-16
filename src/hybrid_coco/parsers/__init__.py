@@ -18,6 +18,16 @@ _EXT_MAP: dict[str, str] = {
     ".ts": "typescript",
     ".tsx": "tsx",
     ".rs": "rust",
+    ".go": "go",
+    ".java": "java",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".hh": "cpp",
+    ".hxx": "cpp",
 }
 
 # Lazy-loaded parser cache
@@ -51,6 +61,18 @@ def get_parser(language: str) -> Optional[Parser]:
         elif language == "rust":
             from .rust_parser import RustParser
             parser = RustParser()
+        elif language == "go":
+            from .go_parser import GoParser
+            parser = GoParser()
+        elif language == "java":
+            from .java_parser import JavaParser
+            parser = JavaParser()
+        elif language == "c":
+            from .c_parser import CFamilyParser
+            parser = CFamilyParser("c")
+        elif language == "cpp":
+            from .c_parser import CFamilyParser
+            parser = CFamilyParser("cpp")
         else:
             return None
 
