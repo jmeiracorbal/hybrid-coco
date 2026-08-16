@@ -149,6 +149,7 @@ hc init [PATH]           Index + .gitignore entry + register MCP + install hooks
 | C++ | tree-sitter-cpp |
 | C# | tree-sitter-c-sharp |
 | Kotlin | tree-sitter-kotlin |
+| Swift | tree-sitter-swift |
 
 Adding a language requires implementing a ~100-line parser in `src/hybrid_coco/parsers/`.
 
