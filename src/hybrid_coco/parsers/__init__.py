@@ -28,6 +28,7 @@ _EXT_MAP: dict[str, str] = {
     ".hpp": "cpp",
     ".hh": "cpp",
     ".hxx": "cpp",
+    ".cs": "csharp",
 }
 
 # Lazy-loaded parser cache
@@ -73,6 +74,9 @@ def get_parser(language: str) -> Optional[Parser]:
         elif language == "cpp":
             from .c_parser import CFamilyParser
             parser = CFamilyParser("cpp")
+        elif language == "csharp":
+            from .csharp_parser import CSharpParser
+            parser = CSharpParser()
         else:
             return None
 
