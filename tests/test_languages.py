@@ -1,4 +1,4 @@
-"""Tests for Go / Java / C / C++ parsers (phase 04)."""
+"""Tests for phase-04 language parsers."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ def test_detect_language_new_extensions():
     assert detect_language("App.cs") == "csharp"
     assert detect_language("Main.kt") == "kotlin"
     assert detect_language("build.kts") == "kotlin"
+    assert detect_language("App.swift") == "swift"
 
 
 def test_go_parser_extracts_symbols():
@@ -177,6 +178,52 @@ def test_kotlin_parser_extracts_symbols():
     assert any(s.kind == "import" and "import" in s.name for s in syms)
 
 
+def test_swift_parser_extracts_symbols():
+    src = textwrap.dedent("""\
+        import Foundation
+
+        /// Greeter greets people.
+        public class Greeter {
+          /// Say hello.
+          public func greet(name: String) -> String { return name }
+          init(name: String) {}
+        }
+
+        protocol Service {
+          func run()
+        }
+
+        struct Point { var x: Int }
+        enum Status { case ok }
+        actor Counter { func inc() {} }
+
+        extension Greeter {
+          func shout() {}
+        }
+
+        func topLevel(x: Int) -> Int { return x }
+    """).encode()
+    syms = parse_file(Path("Greeter.swift"), src)
+    classes = {s.name: s for s in syms if s.kind == "class"}
+    methods = [s for s in syms if s.kind == "method"]
+    functions = [s for s in syms if s.kind == "function"]
+    assert classes["Greeter"].docstring and "greets" in classes["Greeter"].docstring
+    assert classes["Greeter"].signature == "class Greeter"
+    greet = next(s for s in methods if s.name == "greet")
+    assert greet.parent_name == "Greeter"
+    assert greet.docstring and "hello" in greet.docstring
+    assert classes["Service"].signature == "protocol Service"
+    assert classes["Point"].signature == "struct Point"
+    assert classes["Status"].signature == "enum Status"
+    assert classes["Counter"].signature == "actor Counter"
+    assert next(s for s in methods if s.name == "run").parent_name == "Service"
+    assert next(s for s in methods if s.name == "inc").parent_name == "Counter"
+    assert next(s for s in methods if s.name == "shout").parent_name == "Greeter"
+    assert next(s for s in methods if s.name == "init").parent_name == "Greeter"
+    assert next(s for s in functions if s.name == "topLevel")
+    assert any(s.kind == "import" and "import Foundation" in s.name for s in syms)
+
+
 def test_index_counts_new_languages(tmp_path: Path):
     (tmp_path / "main.go").write_text(
         'package main\nfunc Hello() {}\n', encoding="utf-8"
@@ -192,9 +239,12 @@ def test_index_counts_new_languages(tmp_path: Path):
     (tmp_path / "Main.kt").write_text(
         "class AppKt { fun run() {} }\n", encoding="utf-8"
     )
+    (tmp_path / "App.swift").write_text(
+        "class AppSwift { func run() {} }\n", encoding="utf-8"
+    )
 
     result = index_path(tmp_path)
-    assert result.indexed == 6
+    assert result.indexed == 7
     assert result.errors == 0
 
     store = Store(get_index_path(tmp_path))
@@ -206,11 +256,13 @@ def test_index_counts_new_languages(tmp_path: Path):
         assert langs.get("cpp") == 1
         assert langs.get("csharp") == 1
         assert langs.get("kotlin") == 1
+        assert langs.get("swift") == 1
         assert store.lookup_symbol("Hello")
         assert store.lookup_symbol("App")
         assert store.lookup_symbol("util")
         assert store.lookup_symbol("cpp_util")
         assert store.lookup_symbol("AppCs")
         assert store.lookup_symbol("AppKt")
+        assert store.lookup_symbol("AppSwift")
     finally:
         store.close()
