@@ -11,7 +11,7 @@ hybrid-coco provides a local SQLite-backed index of your codebase, exposing it t
 
 **Core principle:** Index once, query always. The `hc_*` MCP tools are cheaper, faster, and more precise than Read + Grep on source files.
 
-**Supported languages:** Python, JavaScript/TypeScript, Rust.
+**Supported languages:** Python, JavaScript/TypeScript, Rust, Go, Java, C, C++.
 
 ---
 
@@ -116,7 +116,7 @@ hc update .
 For a full re-index, run `hc index .`.
 
 **`hc_symbol` returns nothing for a symbol that exists**
-The file may not be in a supported language. hybrid-coco indexes Python, JavaScript/TypeScript, and Rust. For other languages, fall back to Grep.
+The file may not be in a supported language. hybrid-coco indexes Python, JavaScript/TypeScript, Rust, Go, Java, C, and C++. For other languages, fall back to Grep.
 
 **`hc serve` exits immediately**
 No index found in cwd. Run `hc index .` first, then `hc serve`.

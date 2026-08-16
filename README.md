@@ -143,6 +143,10 @@ hc init [PATH]           Index + .gitignore entry + register MCP + install hooks
 | Rust | tree-sitter-rust |
 | JavaScript | tree-sitter-javascript |
 | TypeScript | tree-sitter-typescript |
+| Go | tree-sitter-go |
+| Java | tree-sitter-java |
+| C | tree-sitter-c |
+| C++ | tree-sitter-cpp |
 
 Adding a language requires implementing a ~100-line parser in `src/hybrid_coco/parsers/`.
 
