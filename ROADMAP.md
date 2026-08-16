@@ -1,6 +1,6 @@
 # hybrid-coco — Roadmap
 
-Status: **active** · Last updated: 2026-08-16 · Package: `0.1.11`
+Status: **active** · Last updated: 2026-08-16 · Package: `0.1.12`
 
 ## Goal
 
