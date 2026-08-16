@@ -20,6 +20,8 @@ def test_detect_language_new_extensions():
     assert detect_language("util.hpp") == "cpp"
     assert detect_language("util.cc") == "cpp"
     assert detect_language("App.cs") == "csharp"
+    assert detect_language("Main.kt") == "kotlin"
+    assert detect_language("build.kts") == "kotlin"
 
 
 def test_go_parser_extracts_symbols():
@@ -130,6 +132,51 @@ def test_csharp_parser_extracts_symbols():
     assert ctors[0].parent_name == "Greeter"
 
 
+def test_kotlin_parser_extracts_symbols():
+    src = textwrap.dedent("""\
+        package com.example
+        import kotlin.io.println
+
+        /** Greeter greets people. */
+        class Greeter {
+          /** Say hello. */
+          fun greet(name: String): String = name
+        }
+
+        interface Service {
+          fun run()
+        }
+
+        enum class Status {
+          OK, ERR
+        }
+
+        data class Person(val name: String)
+
+        object Helpers {
+          fun add(a: Int, b: Int) = a + b
+        }
+
+        fun topLevel(x: Int): Int = x
+    """).encode()
+    syms = parse_file(Path("Greeter.kt"), src)
+    classes = {s.name: s for s in syms if s.kind == "class"}
+    methods = [s for s in syms if s.kind == "method"]
+    functions = [s for s in syms if s.kind == "function"]
+    assert classes["Greeter"].docstring and "greets" in classes["Greeter"].docstring
+    greet = next(s for s in methods if s.name == "greet")
+    assert greet.parent_name == "Greeter"
+    assert greet.docstring and "hello" in greet.docstring
+    assert classes["Service"].signature == "interface Service"
+    assert classes["Status"].signature == "enum class Status"
+    assert classes["Person"].signature.startswith("data class Person")
+    assert classes["Helpers"].signature == "object Helpers"
+    assert next(s for s in methods if s.name == "run").parent_name == "Service"
+    assert next(s for s in methods if s.name == "add").parent_name == "Helpers"
+    assert next(s for s in functions if s.name == "topLevel")
+    assert any(s.kind == "import" and "import" in s.name for s in syms)
+
+
 def test_index_counts_new_languages(tmp_path: Path):
     (tmp_path / "main.go").write_text(
         'package main\nfunc Hello() {}\n', encoding="utf-8"
@@ -142,9 +189,12 @@ def test_index_counts_new_languages(tmp_path: Path):
     (tmp_path / "App.cs").write_text(
         "public class AppCs { public void Run() {} }\n", encoding="utf-8"
     )
+    (tmp_path / "Main.kt").write_text(
+        "class AppKt { fun run() {} }\n", encoding="utf-8"
+    )
 
     result = index_path(tmp_path)
-    assert result.indexed == 5
+    assert result.indexed == 6
     assert result.errors == 0
 
     store = Store(get_index_path(tmp_path))
@@ -155,10 +205,12 @@ def test_index_counts_new_languages(tmp_path: Path):
         assert langs.get("c") == 1
         assert langs.get("cpp") == 1
         assert langs.get("csharp") == 1
+        assert langs.get("kotlin") == 1
         assert store.lookup_symbol("Hello")
         assert store.lookup_symbol("App")
         assert store.lookup_symbol("util")
         assert store.lookup_symbol("cpp_util")
         assert store.lookup_symbol("AppCs")
+        assert store.lookup_symbol("AppKt")
     finally:
         store.close()

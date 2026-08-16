@@ -29,6 +29,8 @@ _EXT_MAP: dict[str, str] = {
     ".hh": "cpp",
     ".hxx": "cpp",
     ".cs": "csharp",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
 }
 
 # Lazy-loaded parser cache
@@ -77,6 +79,9 @@ def get_parser(language: str) -> Optional[Parser]:
         elif language == "csharp":
             from .csharp_parser import CSharpParser
             parser = CSharpParser()
+        elif language == "kotlin":
+            from .kotlin_parser import KotlinParser
+            parser = KotlinParser()
         else:
             return None
 
