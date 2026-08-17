@@ -12,6 +12,7 @@ from hybrid_coco.cli import main
 from hybrid_coco.hosts import HOST_NAMES, resolve_host_names
 from hybrid_coco.hosts.common import SKILL_NAMES
 from hybrid_coco.hosts.claude import ClaudeHost
+from hybrid_coco.hosts.codex import CodexHost
 from hybrid_coco.hosts.cursor import CursorHost
 from hybrid_coco.indexer import index_path
 
@@ -155,6 +156,7 @@ def test_init_host_all(project: Path, tmp_path: Path, monkeypatch: pytest.Monkey
     assert result.exit_code == 0, result.output
     assert (project / ".claude" / "settings.json").is_file()
     assert (project / ".cursor" / "mcp.json").is_file()
+    assert (project / ".codex" / "config.toml").is_file()
 
 
 def test_init_unknown_host_fails(project: Path):
@@ -261,3 +263,78 @@ def test_reset_all_removes_cursor_mcp(project: Path, tmp_path: Path, monkeypatch
     assert "other" in claude["mcpServers"]
     cursor = json.loads((project / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
     assert "hybrid-coco" not in cursor["mcpServers"]
+
+
+def test_codex_install_writes_toml_hooks_skills(tmp_path: Path):
+    home = tmp_path / "home"
+    home.mkdir()
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / ".codex").mkdir()
+    (root / ".codex" / "config.toml").write_text(
+        '[mcp_servers.other]\ncommand = "x"\n',
+        encoding="utf-8",
+    )
+    result = CodexHost().install(root, global_config=False, home=home)
+    assert set(result.skills) == set(SKILL_NAMES)
+    text = (root / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert 'command = "x"' in text
+    assert "[mcp_servers.hybrid-coco]" in text
+    hooks = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+    pre = hooks["hooks"]["PreToolUse"]
+    assert any(e.get("matcher") == "Bash" for e in pre)
+    assert any(
+        any(h.get("command") == "hc hook codex pre-tool-use" for h in e.get("hooks", []))
+        for e in pre
+    )
+    packaged = Path(__file__).resolve().parents[1] / "src" / "hybrid_coco" / "assets" / "skills"
+    for dest in (home / ".agents" / "skills", root / ".agents" / "skills"):
+        for name in SKILL_NAMES:
+            assert (dest / name / "SKILL.md").read_bytes() == (
+                packaged / name / "SKILL.md"
+            ).read_bytes()
+    CodexHost().install(root, global_config=False, home=home)
+    hooks2 = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+    commands = [
+        h.get("command")
+        for e in hooks2["hooks"]["PreToolUse"]
+        for h in e.get("hooks", [])
+    ]
+    assert commands.count("hc hook codex pre-tool-use") == 1
+
+
+def test_init_host_codex(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _home(monkeypatch, tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(main, ["init", str(project), "--host", "codex"])
+    assert result.exit_code == 0, result.output
+    assert "Codex integration" in result.output
+    assert (project / ".codex" / "config.toml").is_file()
+    assert not (project / ".cursor" / "mcp.json").exists()
+
+
+def test_codex_hook_blocks_bash_cat(project: Path, monkeypatch: pytest.MonkeyPatch):
+    index_path(project)
+    monkeypatch.chdir(project)
+    payload = json.dumps({
+        "tool_name": "Bash",
+        "tool_input": {"command": f"cat {project / 'src' / 'sample.py'}"},
+    })
+    runner = CliRunner()
+    result = runner.invoke(main, ["hook", "codex", "pre-tool-use"], input=payload)
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["decision"] == "block"
+    assert "hc_file_context" in data["reason"]
+    assert "greet" in data["reason"]
+
+
+def test_codex_session_start_injects_context(project: Path, monkeypatch: pytest.MonkeyPatch):
+    index_path(project)
+    monkeypatch.chdir(project)
+    runner = CliRunner()
+    result = runner.invoke(main, ["hook", "codex", "session-start"], input="{}")
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    assert "hc_*" in data["hookSpecificOutput"]["additionalContext"]

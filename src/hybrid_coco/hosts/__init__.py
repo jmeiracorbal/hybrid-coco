@@ -5,12 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from .claude import ClaudeHost
+from .codex import CodexHost
 from .cursor import CursorHost
 from .types import HostResult
 
 _HOSTS = {
     "claude": ClaudeHost(),
     "cursor": CursorHost(),
+    "codex": CodexHost(),
 }
 
 HOST_NAMES = tuple(_HOSTS.keys())

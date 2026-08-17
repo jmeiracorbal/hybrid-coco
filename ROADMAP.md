@@ -24,7 +24,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
 | CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init`, `hook` |
 | MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status` (path/lang/offset/limit on search, symbol & structure) |
-| Hosts | Claude Code (default `hc init`); Cursor (`hc init --host cursor`) |
+| Hosts | Claude Code (default `hc init`); Cursor (`--host cursor`); Codex (`--host codex`) |
 | Hooks | Host-native intercept of Read/Grep (or equivalent) → `hc_*`; write/edit → `hc update`; session start incremental update where the host has the event |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 
@@ -42,7 +42,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | 08 | Settings file (include / exclude) | **done** |
 | 09 | Embeddings optional layer (`sqlite-vec`) | deferred |
 | 10 | Cursor host (MCP, skills, hooks) | **done** |
-| 11 | Codex host (MCP, skills, hooks) | pending |
+| 11 | Codex host (MCP, skills, hooks) | **done** |
 | 12 | OpenCode host (MCP, skills, hooks) | pending |
 | 13 | Devin host (MCP, skills, hooks) | pending |
 
@@ -163,14 +163,17 @@ Cursor cannot clone every Claude Code matcher; intercept uses the events Cursor 
 
 **Why:** Codex CLI/IDE shares the Agent Skills standard and MCP via `.codex/config.toml`, but has no Read/Grep tools — file reads go through `Bash` / `apply_patch`.
 
-**Scope:**
+**Done:** `hc init --host codex` registers:
 
-- MCP: `[mcp_servers.hybrid-coco]` in `.codex/config.toml`
-- Skills: `.agents/skills/` + `~/.agents/skills/` (same `SKILL.md` set)
-- Hooks: `.codex/hooks.json` — `PreToolUse` on `Bash` (simple `cat`/`head`/`rg`/`grep` of indexed files), `PostToolUse` on `apply_patch`/`Edit`/`Write` → `hc update`, `SessionStart` additionalContext
-- Do not invent Claude-only events Codex does not fire
+| Surface | Location | Behavior |
+|---------|----------|----------|
+| MCP | `.codex/config.toml` `[mcp_servers.hybrid-coco]` | `command = "hc"`, `args = ["serve"]` |
+| Skills | `.agents/skills/` + `~/.agents/skills/` | same packaged `SKILL.md` set |
+| Hooks | `.codex/hooks.json` | `PreToolUse` `Bash` (simple `cat`/`head`/`rg`/`grep`), `PostToolUse` `apply_patch\|Edit\|Write`, `SessionStart` additionalContext |
 
-**Exit criteria:** init + doctor + reset cover Codex; hook tests intercept a `cat` of an indexed file and refresh on `apply_patch`; skills match packaged assets.
+Codex cannot intercept a Claude-style `Read` tool. Output uses the Claude-compatible `decision: block` shape Codex accepts.
+
+**Exit criteria:** init is idempotent; TOML merge keeps other tables; skills bytes match packaged assets; `cat` of an indexed file is blocked with `hc_*` output.
 
 ## Phase 12 — OpenCode host
 
