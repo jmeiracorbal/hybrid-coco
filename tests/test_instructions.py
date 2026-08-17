@@ -27,6 +27,7 @@ from hybrid_coco.hosts.marker import (
     marker_path,
     project_id_from_path,
     read_marker,
+    repair_marker_id,
 )
 from hybrid_coco.hosts.runtime import find_index_root
 from hybrid_coco.indexer import index_path
@@ -160,17 +161,50 @@ def test_marker_rejects_invalid_existing_file(tmp_path: Path):
     path.write_text('{"version": 1}\n', encoding="utf-8")
     with pytest.raises(ValueError, match="missing required key: id"):
         read_marker(tmp_path)
+    assert repair_marker_id(tmp_path) is False
+    assert path.read_text(encoding="utf-8") == '{"version": 1}\n'
     assert marker_is_active(tmp_path) is False
 
 
-def test_marker_empty_id_is_inactive(tmp_path: Path):
+def test_marker_repairs_missing_empty_or_invalid_id(tmp_path: Path):
+    path = marker_path(tmp_path)
+    path.parent.mkdir(parents=True)
+    expected = project_id_from_path(tmp_path.resolve())
+    cases = [
+        {"version": 1, "agents": ["claude"]},
+        {"version": 1, "id": "", "agents": ["claude"]},
+        {"version": 1, "id": "not-a-uuid", "agents": ["claude"]},
+        {"version": 1, "id": "00000000-0000-4000-8000-000000000000", "agents": ["claude"]},
+    ]
+    for payload in cases:
+        path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        assert repair_marker_id(tmp_path) is True
+        data = read_marker(tmp_path)
+        assert data is not None
+        assert data["id"] == expected
+        assert data["agents"] == ["claude"]
+        assert marker_is_active(tmp_path) is True
+        assert repair_marker_id(tmp_path) is False
+
+
+def test_repair_marker_id_does_not_create_a_file(tmp_path: Path):
+    assert repair_marker_id(tmp_path) is False
+    assert not marker_path(tmp_path).exists()
+    assert marker_is_active(tmp_path) is False
+
+
+def test_add_agent_repairs_id_then_appends_host(tmp_path: Path):
     path = marker_path(tmp_path)
     path.parent.mkdir(parents=True)
     path.write_text(
         json.dumps({"version": 1, "id": "", "agents": ["claude"]}) + "\n",
         encoding="utf-8",
     )
-    assert marker_is_active(tmp_path) is False
+    assert add_agent(tmp_path, "cursor") is True
+    data = read_marker(tmp_path)
+    assert data is not None
+    assert data["id"] == project_id_from_path(tmp_path.resolve())
+    assert data["agents"] == ["claude", "cursor"]
 
 
 def test_find_index_root_requires_marker_and_index(tmp_path: Path):

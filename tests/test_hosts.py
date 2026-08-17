@@ -16,7 +16,7 @@ from hybrid_coco.hosts.codex import CodexHost
 from hybrid_coco.hosts.cursor import CursorHost
 from hybrid_coco.hosts.devin import DevinHost
 from hybrid_coco.hosts.opencode import OpenCodeHost
-from hybrid_coco.hosts.marker import add_agent, project_id_from_path
+from hybrid_coco.hosts.marker import add_agent, marker_path, project_id_from_path
 from hybrid_coco.indexer import index_path
 
 
@@ -241,6 +241,29 @@ def test_hook_does_not_block_without_marker(project: Path, monkeypatch: pytest.M
     result = runner.invoke(main, ["hook", "cursor", "pre-tool-use"], input=payload)
     assert result.exit_code == 0, result.output
     assert result.output.strip() == ""
+
+
+def test_hook_repairs_invalid_id_then_blocks(project: Path, monkeypatch: pytest.MonkeyPatch):
+    index_path(project)
+    path = marker_path(project)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"version": 1, "id": "not-a-uuid", "agents": ["claude"]}) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project)
+    payload = json.dumps({
+        "tool_name": "Read",
+        "tool_input": {"path": str(project / "src" / "sample.py")},
+    })
+    runner = CliRunner()
+    result = runner.invoke(main, ["hook", "cursor", "pre-tool-use"], input=payload)
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["permission"] == "deny"
+    marker = json.loads(path.read_text(encoding="utf-8"))
+    assert marker["id"] == project_id_from_path(project.resolve())
+    assert marker["agents"] == ["claude"]
 
 
 def test_cursor_hook_blocks_read(project: Path, monkeypatch: pytest.MonkeyPatch):

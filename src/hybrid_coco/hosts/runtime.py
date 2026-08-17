@@ -51,8 +51,9 @@ class HookResult:
 def find_index_root(start: Path) -> Path | None:
     """walk up until both the index and a valid project marker exist.
 
-    same gate as mnemo: missing/malformed marker or empty id → inactive.
-    an index without `hc init` (no `project.json` id) does not activate hooks.
+    missing marker or missing version/agents → inactive.
+    a present marker with a missing or non-canonical id is rewritten in place.
+    an index without `hc init` (no `project.json`) does not activate hooks.
     """
     current = start.resolve()
     while True:

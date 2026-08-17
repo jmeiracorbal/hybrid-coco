@@ -153,7 +153,7 @@ project/
 └── .hybrid-coco/project.json     ← {version, id, agents} — like mnemo's `.mnemo`
 ```
 
-The global text is conditional: if `.hybrid-coco/project.json` is missing, malformed, or has no `id`, skip hybrid-coco entirely. Hooks use the same gate. `hc init` does not write project `AGENTS.md`, `CLAUDE.md`, or `.cursor/rules/hybrid-coco.mdc`, and does not touch the global instruction files. Re-running `hc install-instructions` refreshes the managed block without duplicating it.
+The global text is conditional: if `.hybrid-coco/project.json` is missing, skip hybrid-coco entirely. If the file exists but `id` is missing, empty, not a UUID, or not the uuid5 derived from the absolute project path, the runtime rewrites `id` in place — it does not invent `version` or `agents`, and it does not create a marker from scratch. Hooks use the same gate. `hc init` does not write project `AGENTS.md`, `CLAUDE.md`, or `.cursor/rules/hybrid-coco.mdc`, and does not touch the global instruction files. Re-running `hc install-instructions` refreshes the managed block without duplicating it.
 
 ## CLI reference
 
