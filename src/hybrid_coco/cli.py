@@ -402,6 +402,39 @@ def cmd_install_instructions(host_names: tuple[str, ...]):
     click.echo("Done. Restart the agent host to load the updated instructions.")
 
 
+# ── hc sync-skills ───────────────────────────────────────────────────────────
+
+@main.command("sync-skills")
+@click.option(
+    "--check",
+    is_flag=True,
+    help="Verify mirrors only; exit 1 when out of sync",
+)
+def cmd_sync_skills(check: bool):
+    """Sync repo skill mirrors from src/hybrid_coco/assets/skills/."""
+    from .skills_sync import sync_mirrors, verify_mirrors
+
+    if check:
+        issues = verify_mirrors()
+        if issues:
+            click.echo("Skill mirrors are out of sync:", err=True)
+            for line in issues:
+                click.echo(f"  {line}", err=True)
+            click.echo("Run: hc sync-skills", err=True)
+            sys.exit(1)
+        click.echo("Skill mirrors are in sync.")
+        return
+
+    try:
+        actions = sync_mirrors()
+    except (OSError, FileNotFoundError) as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+    for line in actions:
+        click.echo(line)
+    click.echo("Done.")
+
+
 # ── hc init ──────────────────────────────────────────────────────────────────
 
 @main.command("init")
