@@ -79,6 +79,32 @@ def test_claude_install_writes_skills_and_mcp(tmp_path: Path):
     global_settings = json.loads((home / ".claude" / "settings.json").read_text(encoding="utf-8"))
     matchers = [e["matcher"] for e in global_settings["hooks"]["PreToolUse"]]
     assert "Read|Grep" in matchers
+    assert not (home / ".claude" / "CLAUDE.md").exists()
+    assert not (home / ".claude" / "hybrid-coco.md").exists()
+    awareness = (root / ".hybrid-coco" / "hybrid-coco.md").read_text(encoding="utf-8")
+    assert "hc_file_context" in awareness
+    claude_md = (root / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "<!-- hybrid-coco:start -->" in claude_md
+    assert "@.hybrid-coco/hybrid-coco.md" in claude_md
+    assert "Decision tree" not in claude_md
+    assert not (root / "AGENTS.md").exists()
+
+
+def test_claude_install_strips_legacy_global_claude_include(tmp_path: Path):
+    home = tmp_path / "home"
+    claude_dir = home / ".claude"
+    claude_dir.mkdir(parents=True)
+    (claude_dir / "hybrid-coco.md").write_text("stale\n", encoding="utf-8")
+    (claude_dir / "CLAUDE.md").write_text("User notes\n@hybrid-coco.md\n", encoding="utf-8")
+    root = tmp_path / "proj"
+    root.mkdir()
+    ClaudeHost().install(root, global_config=False, home=home)
+    assert not (claude_dir / "hybrid-coco.md").exists()
+    leftover = (claude_dir / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "User notes" in leftover
+    assert "@hybrid-coco.md" not in leftover
+    project_md = (root / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "<!-- hybrid-coco:start -->" in project_md
 
 
 def test_cursor_install_matches_packaged_skills(tmp_path: Path):
@@ -109,6 +135,13 @@ def test_cursor_install_matches_packaged_skills(tmp_path: Path):
 
     for dest in (home / ".cursor" / "skills", root / ".cursor" / "skills"):
         _assert_skills_match_host(dest, "cursor")
+    rule = (root / ".cursor" / "rules" / "hybrid-coco.mdc").read_text(encoding="utf-8")
+    assert "alwaysApply: true" in rule
+    assert "hc_*" in rule
+    assert "Decision tree" not in rule
+    assert not (home / ".cursor" / "rules" / "hybrid-coco.mdc").exists()
+    assert not (root / "CLAUDE.md").exists()
+    assert not (root / "AGENTS.md").exists()
 
     # idempotent
     CursorHost().install(root, global_config=False, home=home)
@@ -151,6 +184,8 @@ def test_init_default_is_claude_only(project: Path, tmp_path: Path, monkeypatch:
     assert result.exit_code == 0, result.output
     assert (project / ".claude" / "settings.json").is_file()
     assert not (project / ".cursor" / "mcp.json").exists()
+    assert (project / "CLAUDE.md").is_file()
+    assert not (project / "AGENTS.md").exists()
 
 
 def test_init_host_all(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -163,6 +198,11 @@ def test_init_host_all(project: Path, tmp_path: Path, monkeypatch: pytest.Monkey
     assert (project / ".codex" / "config.toml").is_file()
     assert (project / "opencode.json").is_file()
     assert (project / ".devin" / "mcp_config.json").is_file()
+    assert (project / "CLAUDE.md").is_file()
+    assert (project / "AGENTS.md").is_file()
+    assert (project / ".cursor" / "rules" / "hybrid-coco.mdc").is_file()
+    assert "@.hybrid-coco/hybrid-coco.md" in (project / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "<!-- hybrid-coco:start -->" in (project / "AGENTS.md").read_text(encoding="utf-8")
 
 
 def test_init_unknown_host_fails(project: Path):
@@ -295,7 +335,13 @@ def test_codex_install_writes_toml_hooks_skills(tmp_path: Path):
     )
     for dest in (home / ".agents" / "skills", root / ".agents" / "skills"):
         _assert_skills_match_host(dest, "codex")
+    agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "<!-- hybrid-coco:start -->" in agents
+    assert "hc_*" in agents
+    assert "Decision tree" not in agents
+    assert not (home / ".codex" / "AGENTS.md").exists()
     CodexHost().install(root, global_config=False, home=home)
+    assert (root / "AGENTS.md").read_text(encoding="utf-8").count("<!-- hybrid-coco:start -->") == 1
     hooks2 = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
     commands = [
         h.get("command")
@@ -365,6 +411,8 @@ def test_opencode_install_plugin_mcp_skills(tmp_path: Path):
         root / ".opencode" / "skills",
     ):
         _assert_skills_match_host(dest, "opencode")
+    assert "<!-- hybrid-coco:start -->" in (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Decision tree" not in (root / "AGENTS.md").read_text(encoding="utf-8")
 
 
 def test_init_host_opencode(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -425,6 +473,7 @@ def test_devin_install_mcp_hooks_skills(tmp_path: Path):
     )
     for dest in (home / ".config" / "devin" / "skills", root / ".devin" / "skills"):
         _assert_skills_match_host(dest, "devin")
+    assert "<!-- hybrid-coco:start -->" in (root / "AGENTS.md").read_text(encoding="utf-8")
     DevinHost().install(root, global_config=False, home=home)
     hooks2 = json.loads((root / ".devin" / "hooks.v1.json").read_text(encoding="utf-8"))
     commands = [

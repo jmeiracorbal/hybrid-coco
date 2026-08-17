@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from .common import (
-    ASSETS_DIR,
     MCP_TOOLS,
     copy_hook_scripts,
     copy_skills,
@@ -16,6 +15,7 @@ from .common import (
     remove_mcp_json,
     write_json,
 )
+from .instructions import apply_project_instructions
 from .types import HostResult
 
 _HOOK_NAMES = ("hc-pre-tool-use.sh", "hc-post-tool-use.sh")
@@ -87,25 +87,7 @@ class ClaudeHost:
         for tool in MCP_TOOLS:
             lines.append(tool)
 
-        src_awareness = ASSETS_DIR / "hybrid-coco.md"
-        if not src_awareness.is_file():
-            raise FileNotFoundError(f"packaged awareness missing: {src_awareness}")
-        dst_awareness = claude_dir / "hybrid-coco.md"
-        dst_awareness.write_text(src_awareness.read_text(encoding="utf-8"), encoding="utf-8")
-        lines.append("~/.claude/hybrid-coco.md written")
-
-        claude_md = claude_dir / "CLAUDE.md"
-        tag = "@hybrid-coco.md"
-        if claude_md.exists():
-            content = claude_md.read_text(encoding="utf-8")
-        else:
-            content = ""
-        if tag not in content:
-            sep = "\n" if content and not content.endswith("\n") else ""
-            claude_md.write_text(content + sep + tag + "\n", encoding="utf-8")
-            lines.append("@hybrid-coco.md added to ~/.claude/CLAUDE.md")
-        else:
-            lines.append("@hybrid-coco.md already in ~/.claude/CLAUDE.md")
+        lines.extend(apply_project_instructions(root=root, host=self.name, home=home))
 
         copy_hook_scripts(claude_dir / "hooks", _HOOK_NAMES)
         lines.append("hooks installed in ~/.claude/hooks/")
