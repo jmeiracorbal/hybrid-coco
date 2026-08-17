@@ -31,7 +31,8 @@ Need to understand a file?
 
 Need to find something across the codebase?
   ├─ know the name? → hc_symbol("name")
-  └─ know a pattern? → hc_search("query")
+  ├─ know a pattern? → hc_search("query")
+  └─ know the shape (fn/class/import)? → hc_structure("function"|"method"|"class"|"import")
        └─ found lines? → hc_snippet("path", line_start, line_end)
 
 Need to read a full file?
@@ -44,6 +45,7 @@ Need to read a full file?
 |---|---|---|
 | Find by exact/prefix name | `hc_symbol` | Read + grep |
 | Search by concept/keyword | `hc_search` | Recursive grep |
+| Search by code shape | `hc_structure` | Blind grep/Read |
 | Understand a file | `hc_file_context` | Full-file Read |
 | Read a known line range | `hc_snippet` | Partial Read |
 | Check coverage / health | `hc_status` | ls / find |

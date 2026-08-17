@@ -7,8 +7,8 @@ Index-based code navigation. Same context quality, fewer tokens.
 ## What's included
 
 - `.hybrid-coco/index.db` in the project workspace
-- `hc index` / `hc update` / `hc query` / `hc symbol` / `hc file-context` / `hc snippet`
-- MCP tools: `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_status`
+- `hc index` / `hc update` / `hc query` / `hc symbol` / `hc file-context` / `hc snippet` / `hc structure`
+- MCP tools: `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status`
 - Claude Code hooks and skills (`hybrid-coco`, `hc-init`, `hc-search`)
 
 ## Decision tree
@@ -23,6 +23,7 @@ Need to understand a file?
 Need to find something across the codebase?
   ├─ know the name? → hc_symbol("name")
   └─ know a pattern? → hc_search("query")
+  └─ know the shape? → hc_structure("function"|"method"|"class"|"import")
        └─ found lines? → hc_snippet("path", line_start, line_end)
 
 Need to read a full file?
@@ -36,6 +37,7 @@ Need to read a full file?
 |---|---|
 | `hc_file_context("path")` | Before any Read — get all symbols, signatures, line numbers |
 | `hc_snippet("path", start, end)` | Read only the lines you need (1-based, inclusive) |
+| `hc_structure("kind", path?, lang?, offset?, limit?)` | Find functions/methods/classes/imports by shape |
 | `hc_search("query", path?, lang?, offset?, limit?)` | Before any Grep — FTS5 search; optional path/lang filters AND together |
 | `hc_symbol("name", path?, lang?, offset?, limit?)` | Exact/prefix symbol lookup; same optional filters |
 | `hc_status()` | Check what's indexed before exploring |

@@ -20,6 +20,7 @@ This skill **queries** only. It does not run `hc init` / `hc index` unless tools
 |---|---|
 | Exact or prefix symbol name | `hc_symbol(name=...)` |
 | Concept / keyword / docstring text | `hc_search(query=...)` |
+| Code shape (function/method/class/import) | `hc_structure(kind=...)` |
 | What is in one file | `hc_file_context(path=...)` |
 | Read a known line range | `hc_snippet(path=..., line_start=..., line_end=...)` |
 | Is anything indexed? | `hc_status()` |

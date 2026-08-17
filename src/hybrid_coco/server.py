@@ -18,6 +18,7 @@ from .filters import (
 )
 from .snippet import SnippetError, read_snippet
 from .store import Store
+from .structure import StructureError, search_structure
 
 
 def _require_store(root: Path) -> Store:
@@ -127,6 +128,20 @@ def _fmt_file_context(path: str, data: dict | None) -> str:
     return "\n".join(lines).rstrip()
 
 
+def _fmt_structure(kind: str, results: list) -> str:
+    if not results:
+        return f"# hc_structure({kind!r})\nNo results."
+    lines = [f"# hc_structure({kind!r})"]
+    for match in results:
+        label = match.name if match.name else match.node_type
+        lines.append(
+            f"[{match.path}:{match.line_start}] {match.kind} {label} ({match.language})"
+        )
+        if match.preview:
+            lines.append(f"  {match.preview}")
+    return "\n".join(lines)
+
+
 def _fmt_status(stats: dict, db: Path) -> str:
     by_kind = stats["by_kind"]
     PLURAL = {"class": "classes"}
@@ -223,6 +238,38 @@ def build_server(root: Path) -> tuple[MCPServer, Store]:
         try:
             return read_snippet(root, path, line_start, line_end)
         except SnippetError as exc:
+            return f"Error: {exc}"
+
+    @server.tool(
+        name="hc_structure",
+        description=(
+            "Structural search by tree-sitter shape over indexed files. "
+            "kind is one of: function, method, class, import. "
+            "Optional path/lang filters AND together; use offset/limit to page."
+        ),
+    )
+    async def hc_structure(
+        kind: str,
+        path: Optional[str] = None,
+        lang: Optional[list[str]] = None,
+        offset: int = 0,
+        limit: int = DEFAULT_QUERY_LIMIT,
+    ) -> str:
+        try:
+            path_f, langs, offset_v, limit_v = _parse_filters(
+                path=path, lang=lang, offset=offset, limit=limit
+            )
+            results = search_structure(
+                root,
+                store,
+                kind,
+                path=path_f,
+                languages=langs,
+                offset=offset_v,
+                limit=limit_v,
+            )
+            return _fmt_structure(kind, results)
+        except (StructureError, ValueError, TypeError) as exc:
             return f"Error: {exc}"
 
     @server.tool(
