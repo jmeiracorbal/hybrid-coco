@@ -24,7 +24,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
 | CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init`, `hook` |
 | MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status` (path/lang/offset/limit on search, symbol & structure) |
-| Hosts | Claude Code (default `hc init`); Cursor (`--host cursor`); Codex (`--host codex`) |
+| Hosts | Claude Code (default); Cursor; Codex; OpenCode |
 | Hooks | Host-native intercept of Read/Grep (or equivalent) → `hc_*`; write/edit → `hc update`; session start incremental update where the host has the event |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 
@@ -43,7 +43,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | 09 | Embeddings optional layer (`sqlite-vec`) | deferred |
 | 10 | Cursor host (MCP, skills, hooks) | **done** |
 | 11 | Codex host (MCP, skills, hooks) | **done** |
-| 12 | OpenCode host (MCP, skills, hooks) | pending |
+| 12 | OpenCode host (MCP, skills, hooks) | **done** |
 | 13 | Devin host (MCP, skills, hooks) | pending |
 
 ---
@@ -179,14 +179,17 @@ Codex cannot intercept a Claude-style `Read` tool. Output uses the Claude-compat
 
 **Why:** OpenCode loads MCP from `opencode.json`, skills from `.opencode/skills/`, and hooks as JS plugins (`tool.execute.before` / `tool.execute.after`), not Claude `settings.json`.
 
-**Scope:**
+**Done:** `hc init --host opencode` registers:
 
-- MCP: `opencode.json` `mcp.hybrid-coco` local command `["hc", "serve"]`
-- Skills: `.opencode/skills/` + `~/.config/opencode/skills/`
-- Plugin: `.opencode/plugins/hybrid-coco.js` calling `hc hook opencode …` for `read`/`grep` before and `write`/`edit` after
-- OpenCode tool args use `filePath` — no silent aliasing to Claude `file_path`
+| Surface | Location | Behavior |
+|---------|----------|----------|
+| MCP | `opencode.json` `mcp.hybrid-coco` | local `["hc", "serve"]` |
+| Skills | `.opencode/skills/` + `~/.config/opencode/skills/` | same packaged `SKILL.md` set |
+| Hooks | `.opencode/plugins/hybrid-coco.js` | `tool.execute.before` for `read`/`grep`; `tool.execute.after` for `write`/`edit` |
 
-**Exit criteria:** init writes plugin + MCP + skills; Python hook tests block `read` with `filePath`; skills match packaged assets.
+OpenCode `read` uses `filePath`. The hook does not alias Claude's `file_path`. Blocking throws `decision.reason` from `hc hook opencode pre-tool-use` (`{"block": true, "reason": ...}`).
+
+**Exit criteria:** init writes plugin + MCP + skills; Python hook tests block `read` with `filePath` and ignore `file_path`; skills match packaged assets.
 
 ## Phase 13 — Devin host
 
