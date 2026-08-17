@@ -7,12 +7,14 @@ from pathlib import Path
 from .claude import ClaudeHost
 from .codex import CodexHost
 from .cursor import CursorHost
+from .opencode import OpenCodeHost
 from .types import HostResult
 
 _HOSTS = {
     "claude": ClaudeHost(),
     "cursor": CursorHost(),
     "codex": CodexHost(),
+    "opencode": OpenCodeHost(),
 }
 
 HOST_NAMES = tuple(_HOSTS.keys())

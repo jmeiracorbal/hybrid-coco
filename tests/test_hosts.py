@@ -14,6 +14,7 @@ from hybrid_coco.hosts.common import SKILL_NAMES
 from hybrid_coco.hosts.claude import ClaudeHost
 from hybrid_coco.hosts.codex import CodexHost
 from hybrid_coco.hosts.cursor import CursorHost
+from hybrid_coco.hosts.opencode import OpenCodeHost
 from hybrid_coco.indexer import index_path
 
 
@@ -157,6 +158,7 @@ def test_init_host_all(project: Path, tmp_path: Path, monkeypatch: pytest.Monkey
     assert (project / ".claude" / "settings.json").is_file()
     assert (project / ".cursor" / "mcp.json").is_file()
     assert (project / ".codex" / "config.toml").is_file()
+    assert (project / "opencode.json").is_file()
 
 
 def test_init_unknown_host_fails(project: Path):
@@ -338,3 +340,71 @@ def test_codex_session_start_injects_context(project: Path, monkeypatch: pytest.
     data = json.loads(result.output)
     assert data["hookSpecificOutput"]["hookEventName"] == "SessionStart"
     assert "hc_*" in data["hookSpecificOutput"]["additionalContext"]
+
+
+def test_opencode_install_plugin_mcp_skills(tmp_path: Path):
+    home = tmp_path / "home"
+    home.mkdir()
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "opencode.json").write_text(
+        '{"mcp": {"other": {"type": "local", "command": ["x"]}}}\n',
+        encoding="utf-8",
+    )
+    result = OpenCodeHost().install(root, global_config=False, home=home)
+    assert set(result.skills) == set(SKILL_NAMES)
+    data = json.loads((root / "opencode.json").read_text(encoding="utf-8"))
+    assert data["mcp"]["other"]["command"] == ["x"]
+    assert data["mcp"]["hybrid-coco"]["command"] == ["hc", "serve"]
+    assert data["mcp"]["hybrid-coco"]["type"] == "local"
+    plugin = (root / ".opencode" / "plugins" / "hybrid-coco.js").read_text(encoding="utf-8")
+    assert "tool.execute.before" in plugin
+    assert '"hook", "opencode"' in plugin
+    packaged = Path(__file__).resolve().parents[1] / "src" / "hybrid_coco" / "assets" / "skills"
+    for dest in (
+        home / ".config" / "opencode" / "skills",
+        root / ".opencode" / "skills",
+    ):
+        for name in SKILL_NAMES:
+            assert (dest / name / "SKILL.md").read_bytes() == (
+                packaged / name / "SKILL.md"
+            ).read_bytes()
+
+
+def test_init_host_opencode(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _home(monkeypatch, tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(main, ["init", str(project), "--host", "opencode"])
+    assert result.exit_code == 0, result.output
+    assert "OpenCode integration" in result.output
+    assert (project / "opencode.json").is_file()
+    assert not (project / ".cursor" / "mcp.json").exists()
+
+
+def test_opencode_hook_blocks_read_filepath(project: Path, monkeypatch: pytest.MonkeyPatch):
+    index_path(project)
+    monkeypatch.chdir(project)
+    payload = json.dumps({
+        "tool_name": "read",
+        "tool_input": {"filePath": str(project / "src" / "sample.py")},
+    })
+    runner = CliRunner()
+    result = runner.invoke(main, ["hook", "opencode", "pre-tool-use"], input=payload)
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["block"] is True
+    assert "hc_file_context" in data["reason"]
+    assert "greet" in data["reason"]
+
+
+def test_opencode_hook_ignores_claude_file_path_key(project: Path, monkeypatch: pytest.MonkeyPatch):
+    index_path(project)
+    monkeypatch.chdir(project)
+    payload = json.dumps({
+        "tool_name": "read",
+        "tool_input": {"file_path": str(project / "src" / "sample.py")},
+    })
+    runner = CliRunner()
+    result = runner.invoke(main, ["hook", "opencode", "pre-tool-use"], input=payload)
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == ""
