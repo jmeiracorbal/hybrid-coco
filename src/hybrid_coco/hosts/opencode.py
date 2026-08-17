@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .common import ASSETS_DIR, MCP_TOOLS, copy_skills, load_json_object, skills_src, write_json
+from .instructions import apply_project_instructions
 from .types import HostResult
 
 _MCP_ENTRY = {
@@ -81,6 +82,7 @@ class OpenCodeHost:
         lines.append(f"plugin installed at {plugin}")
         lines.append("tool.execute.before: read/grep → hc_*")
         lines.append("tool.execute.after: write/edit → hc update")
+        lines.extend(apply_project_instructions(root=root, host=self.name))
 
         skill_targets = [home / ".config" / "opencode" / "skills"]
         if not global_config:

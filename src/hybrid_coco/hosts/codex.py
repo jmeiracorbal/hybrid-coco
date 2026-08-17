@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .common import MCP_TOOLS, copy_skills, hook_command, load_json_object, skills_src, write_json
 from .tomlcfg import mcp_registered_toml, remove_codex_mcp, upsert_codex_mcp
+from .instructions import apply_project_instructions
 from .types import HostResult
 
 _HOOK_EVENTS: tuple[tuple[str, str, str | None], ...] = (
@@ -78,6 +79,7 @@ class CodexHost:
         lines.append("PreToolUse Bash: cat/head/rg/grep of indexed files → hc_*")
         lines.append("PostToolUse apply_patch|Edit|Write → hc update")
         lines.append("SessionStart: incremental hc update + hc_* reminder")
+        lines.extend(apply_project_instructions(root=root, host=self.name))
 
         skill_targets = [home / ".agents" / "skills"]
         if not global_config:

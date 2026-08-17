@@ -14,6 +14,7 @@ from .config import get_index_path
 from .filters import DEFAULT_QUERY_LIMIT, validate_languages, validate_paging, validate_path_filter
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
 from .hosts import HOST_NAMES, install_hosts, resolve_host_names
+from .hosts.instructions import install_global_instructions, strip_legacy_global_claude_include
 from .settings import SettingsError, ensure_settings, load_or_create_settings, settings_path
 from .snippet import SnippetError, read_snippet
 from .store import Store
@@ -422,6 +423,44 @@ def cmd_hook(host: str, event: str):
 
     code = run_hook(host, event, sys.stdin.read(), Path.cwd())
     sys.exit(code)
+
+
+# ── hc install-instructions ──────────────────────────────────────────────────
+
+@main.command("install-instructions")
+@click.option(
+    "--host",
+    "host_names",
+    multiple=True,
+    default=("claude",),
+    show_default=True,
+    help=(
+        "Agent host whose global instruction surface to update (repeatable). "
+        f"One of: {', '.join(HOST_NAMES)}, or all."
+    ),
+)
+def cmd_install_instructions(host_names: tuple[str, ...]):
+    """Install the short conditional protocol into user-global instruction files."""
+    try:
+        names = resolve_host_names(host_names)
+    except ValueError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
+    home = Path.home()
+    click.echo("hybrid-coco install-instructions")
+    click.echo("━" * 40)
+    try:
+        if "claude" in names:
+            for line in strip_legacy_global_claude_include(home):
+                click.echo(f"  ✓ {line}")
+        for name in names:
+            dest = install_global_instructions(home=home, host=name)
+            click.echo(f"  ✓ {dest}")
+    except (OSError, ValueError, FileNotFoundError) as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+    click.echo("Done. Restart the agent host to load the updated instructions.")
 
 
 # ── hc init ──────────────────────────────────────────────────────────────────

@@ -7,8 +7,6 @@ PACKAGE="hybrid-coco"
 HOOKS_DIR="${HOME}/.claude/hooks"
 CLAUDE_DIR="${HOME}/.claude"
 SETTINGS="${CLAUDE_DIR}/settings.json"
-AWARENESS="${CLAUDE_DIR}/hybrid-coco.md"
-CLAUDE_MD="${CLAUDE_DIR}/CLAUDE.md"
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
@@ -84,21 +82,7 @@ else
   warn "Try: pip install --upgrade hybrid-coco"
 fi
 
-# ── 4. Awareness file ─────────────────────────────────────────────────────────
-info "Installing awareness file from package assets..."
-
-ASSETS_AWARENESS=$("$PYTHON" -c "
-import hybrid_coco, os
-print(os.path.join(os.path.dirname(hybrid_coco.__file__), 'assets', 'hybrid-coco.md'))
-" 2>/dev/null)
-
-if [ -f "$ASSETS_AWARENESS" ]; then
-  cp "$ASSETS_AWARENESS" "$AWARENESS"
-else
-  warn "Package awareness file not found — skipped"
-fi
-
-# ── 5. Install agent skills ───────────────────────────────────────────────────
+# ── 4. Install agent skills ───────────────────────────────────────────────────
 info "Installing agent skills from package assets..."
 
 ASSETS_SKILLS=$("$PYTHON" -c "
@@ -121,7 +105,7 @@ else
   warn "Package skills not found — skipped"
 fi
 
-# ── 6. Patch ~/.claude/settings.json ─────────────────────────────────────────
+# ── 5. Patch ~/.claude/settings.json ─────────────────────────────────────────
 info "Patching Claude Code settings..."
 
 "$PYTHON" - << PYEOF
@@ -180,18 +164,26 @@ else:
     print("[hybrid-coco] settings.json already configured — no changes needed")
 PYEOF
 
-# ── 7. Add @hybrid-coco.md to CLAUDE.md ──────────────────────────────────────
-if [ -f "$CLAUDE_MD" ]; then
-  if grep -q "@hybrid-coco.md" "$CLAUDE_MD"; then
-    info "CLAUDE.md already references @hybrid-coco.md"
-  else
-    info "Adding @hybrid-coco.md to CLAUDE.md..."
-    echo "" >> "$CLAUDE_MD"
-    echo "@hybrid-coco.md" >> "$CLAUDE_MD"
-  fi
+# ── 6. Global short instruction gate (mnemo-style) ───────────────────────────
+# Strips the old @hybrid-coco.md dump, then writes a short conditional section
+# to ~/.claude/CLAUDE.md. It only activates in projects with a valid marker.
+info "Installing global Claude Code instructions..."
+if command -v hc &>/dev/null; then
+  hc install-instructions --host claude
 else
-  info "Creating CLAUDE.md with @hybrid-coco.md reference..."
-  echo "@hybrid-coco.md" > "$CLAUDE_MD"
+  "$PYTHON" - << PYEOF
+from pathlib import Path
+from hybrid_coco.hosts.instructions import (
+    install_global_instructions,
+    strip_legacy_global_claude_include,
+)
+
+home = Path.home()
+for line in strip_legacy_global_claude_include(home):
+    print(f"[hybrid-coco] {line}")
+dest = install_global_instructions(home=home, host="claude")
+print(f"[hybrid-coco] global instructions: {dest}")
+PYEOF
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
@@ -201,7 +193,7 @@ echo ""
 echo "  Next steps:"
 echo "  hybrid-coco is self-contained: index, CLI, MCP, hooks, and skills."
 echo "  1. Restart Claude Code (or reload the window)"
-echo "  2. In any project: hc init"
+echo "  2. In any project: hc init   # index + project marker (.hybrid-coco/project.json)"
 echo "  3. Use hc_* tools for code navigation"
 echo "  4. Skills: hybrid-coco, /hc-init, /hc-search"
 echo ""

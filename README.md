@@ -72,7 +72,7 @@ Baseline = recursive search plus reading whole files. hybrid-coco = `hc symbol` 
 curl -fsSL https://raw.githubusercontent.com/jmeiracorbal/hybrid-coco/main/install.sh | bash
 ```
 
-Installs `hc` and runs `hc init` (Claude Code by default). Other hosts: `hc init --host cursor|codex|opencode|devin` or `--host all`. Requires Python 3.11+ (detects uv, pipx, or pip automatically).
+Installs the `hc` package (uv, pipx, or pip), Claude Code hooks, and the short global instruction gate (`hc install-instructions --host claude`). It does **not** run `hc init`. Other hosts: `hc install-instructions --host cursor|codex|opencode|devin` or `--host all`. Requires Python 3.11+.
 
 **Option B: Claude Code plugin**
 
@@ -99,11 +99,12 @@ hc init --host devin
 hc init --host all      # every supported host
 ```
 
-`hc init` does four things:
+`hc init` does five things:
 - Indexes the current directory (tree-sitter, SHA-256 incremental)
-- Registers the MCP server in the host project config
+- Registers the MCP server in the host **project** config
 - Installs host-native hooks that intercept `Read` and `Grep` (or the host's equivalent)
 - Installs host-adapted agent skills (`hybrid-coco`, `hc-init`, `hc-search`) — same names, host-specific MCP paths, native tools, and hook events
+- Activates the project the same way mnemo does: writes `.hybrid-coco/project.json` (`version`, deterministic `id`, `agents`) and copies the full protocol to `.hybrid-coco/hybrid-coco.md`. It does **not** append to project `AGENTS.md` / `CLAUDE.md`, and it does **not** write user-global instruction files. The short conditional protocol is installed once by `install.sh` / `hc install-instructions`.
 
 Restart the agent host to activate.
 
@@ -136,6 +137,24 @@ The hooks will remind the agent (via the host's hook protocol) whenever it is ab
 
 Skills keep the same names on every host (`hybrid-coco`, `hc-init`, `hc-search`) so `/hc-init` and `/hc-search` still work. The `SKILL.md` body is host-adapted: MCP path, native tools to avoid, and only the hook events that host actually fires. Hooks never invent events a host does not support.
 
+Instruction files follow the same split as mnemo: install globally, activate per project.
+
+```
+# global (once — install.sh / hc install-instructions)
+~/.claude/CLAUDE.md                         ← short <!-- hybrid-coco:start --> gate
+~/.cursor/rules/hybrid-coco.mdc             ← alwaysApply: true, same gate
+~/.codex/AGENTS.md
+~/.config/opencode/AGENTS.md
+~/.config/devin/AGENTS.md
+
+# project (`hc init`)
+project/
+├── .hybrid-coco/hybrid-coco.md   ← full protocol (gitignored with the index)
+└── .hybrid-coco/project.json     ← {version, id, agents} — like mnemo's `.mnemo`
+```
+
+The global text is conditional: if `.hybrid-coco/project.json` is missing, skip hybrid-coco entirely. If the file exists but `id` is missing, empty, not a UUID, or not the uuid5 derived from the absolute project path, the runtime rewrites `id` in place — it does not invent `version` or `agents`, and it does not create a marker from scratch. Hooks use the same gate. `hc init` does not write project `AGENTS.md`, `CLAUDE.md`, or `.cursor/rules/hybrid-coco.mdc`, and does not touch the global instruction files. Re-running `hc install-instructions` refreshes the managed block without duplicating it.
+
 ## CLI reference
 
 ```
@@ -158,8 +177,11 @@ hc reset [PATH] [-f] [--all]
                          Delete index DB; --all also drops project MCP entries
 hc serve                 Start MCP server (stdio)
 hc hook <HOST> <EVENT>   Host lifecycle hook (JSON stdin/stdout)
+hc install-instructions [--host NAME]...
+                         Short conditional protocol in user-global instruction files
+                         --host: claude (default), cursor, codex, opencode, devin, all
 hc init [PATH] [--host NAME]...
-                         Index + .gitignore + register MCP/hooks/skills
+                         Index + marker + .gitignore + register MCP/hooks/skills
                          --host: claude (default), cursor, codex, opencode, devin, all
 ```
 
