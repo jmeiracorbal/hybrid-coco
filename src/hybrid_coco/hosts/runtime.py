@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import Any
 
 from ..config import get_index_path
+from ..formatters import OutputStyle, format_file_context, format_search
 from ..indexer import index_path
+from ..query import file_context, fts_search
 from ..settings import SettingsError
 from ..snippet import SnippetError, read_snippet
 from ..store import Store
@@ -74,43 +76,6 @@ def _indexed_relpath(root: Path, file_path: str) -> str | None:
         return None
 
 
-def _format_file_context(path: str, data: dict) -> str:
-    symbols = data["symbols"]
-    lang = data["language"] or "unknown"
-    lines = [f"File: {path} ({lang}) — {len(symbols)} symbols", ""]
-    by_kind: dict[str, list[dict]] = {}
-    for sym in symbols:
-        by_kind.setdefault(sym["kind"], []).append(sym)
-    labels = {
-        "class": "Classes",
-        "function": "Functions",
-        "method": "Methods",
-        "import": "Imports",
-    }
-    for kind, label in labels.items():
-        group = by_kind.get(kind)
-        if not group:
-            continue
-        lines.append(f"{label} ({len(group)}):")
-        for sym in group:
-            if kind == "import":
-                lines.append(f"  {sym['name']}")
-            elif sym.get("signature"):
-                lines.append(f"  {sym['name']} @ {sym['line_start']}  {sym['signature']}")
-            else:
-                lines.append(f"  {sym['name']} @ {sym['line_start']}")
-        lines.append("")
-    return "\n".join(lines).rstrip()
-
-
-def _format_search(pattern: str, rows: list[dict]) -> str:
-    lines = [f'Search results for "{pattern}":', ""]
-    for r in rows:
-        doc_part = f" — {r['docstring'][:80]}" if r.get("docstring") else ""
-        lines.append(f"[{r['path']}:{r['line_start']}]  {r['kind']} {r['name']}{doc_part}")
-    return "\n".join(lines)
-
-
 def intercept_read(root: Path, rel_path: str, offset: int | None, limit: int | None) -> str | None:
     store = Store(get_index_path(root))
     try:
@@ -126,10 +91,10 @@ def intercept_read(root: Path, rel_path: str, offset: int | None, limit: int | N
                 f"[hybrid-coco] Snippet for {rel_path}:\n\n{body}\n\n"
                 "Use hc_snippet when line ranges are known."
             )
-        data = store.file_context(rel_path)
+        data = file_context(store, rel_path)
         if data is None:
             return None
-        body = _format_file_context(rel_path, data)
+        body = format_file_context(rel_path, data, style=OutputStyle.HOOK)
         return (
             f"[hybrid-coco] Symbols for {rel_path}:\n\n{body}\n\n"
             "Use hc_file_context first, then hc_snippet for the body."
@@ -143,12 +108,12 @@ def intercept_grep(root: Path, pattern: str) -> str | None:
         return None
     store = Store(get_index_path(root))
     try:
-        rows = store.fts_search(pattern)
+        rows = fts_search(store, pattern)
     finally:
         store.close()
     if not rows:
         return None
-    body = _format_search(pattern, rows)
+    body = format_search(pattern, rows, style=OutputStyle.HOOK)
     return (
         f"[hybrid-coco] {body}\n\n"
         "Use hc_search, then hc_snippet for matched ranges."
