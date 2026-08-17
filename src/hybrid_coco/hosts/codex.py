@@ -4,94 +4,54 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .common import MCP_TOOLS, copy_skills, hook_command, load_json_object, skills_src, write_json
-from .tomlcfg import mcp_registered_toml, remove_codex_mcp, upsert_codex_mcp
+from .base import HostInstaller, install_skills_to_targets, mcp_registration_lines
+from .common import load_json_object
+from .hooks_patch import patch_nested_hook_events
 from .instructions import apply_project_instructions
+from .tomlcfg import mcp_registered_toml, remove_codex_mcp, upsert_codex_mcp
 from .types import HostResult
 
-_HOOK_EVENTS: tuple[tuple[str, str, str | None], ...] = (
+_HOOK_EVENTS = (
     ("PreToolUse", "pre-tool-use", "Bash"),
     ("PostToolUse", "post-tool-use", "apply_patch|Edit|Write"),
     ("SessionStart", "session-start", None),
 )
 
 
-def _config_file(root: Path, *, global_config: bool, home: Path) -> Path:
-    if global_config:
-        return home / ".codex" / "config.toml"
-    return root / ".codex" / "config.toml"
-
-
-def _hooks_file(root: Path, *, global_config: bool, home: Path) -> Path:
-    if global_config:
-        return home / ".codex" / "hooks.json"
-    return root / ".codex" / "hooks.json"
-
-
-def _command_present(entries: list, command: str) -> bool:
-    for entry in entries:
-        for hook in entry.get("hooks", []):
-            if hook.get("command") == command:
-                return True
-    return False
-
-
-def _patch_hooks_json(path: Path) -> None:
-    data = load_json_object(path) if path.is_file() else {}
-    hooks = data.get("hooks")
-    if not isinstance(hooks, dict):
-        hooks = {}
-        data["hooks"] = hooks
-    for event, hc_event, matcher in _HOOK_EVENTS:
-        command = hook_command("codex", hc_event)
-        entries = hooks.get(event)
-        if not isinstance(entries, list):
-            entries = []
-            hooks[event] = entries
-        if _command_present(entries, command):
-            continue
-        item: dict = {
-            "hooks": [{"type": "command", "command": command}],
-        }
-        if matcher is not None:
-            item["matcher"] = matcher
-        entries.append(item)
-    write_json(path, data)
-
-
-class CodexHost:
+class CodexHost(HostInstaller):
     name = "codex"
     title = "Codex"
     events = ("pre-tool-use", "post-tool-use", "session-start")
 
+    def _config_file(self, root: Path, *, global_config: bool, home: Path) -> Path:
+        if global_config:
+            return home / ".codex" / "config.toml"
+        return root / ".codex" / "config.toml"
+
+    def _hooks_file(self, root: Path, *, global_config: bool, home: Path) -> Path:
+        if global_config:
+            return home / ".codex" / "hooks.json"
+        return root / ".codex" / "hooks.json"
+
     def install(self, root: Path, *, global_config: bool, home: Path) -> HostResult:
-        lines: list[str] = []
-        cfg = _config_file(root, global_config=global_config, home=home)
+        cfg = self._config_file(root, global_config=global_config, home=home)
         upsert_codex_mcp(cfg)
         label = str(cfg) if global_config else ".codex/config.toml"
-        lines.append(f"MCP server registered in {label}")
-        for tool in MCP_TOOLS:
-            lines.append(tool)
+        lines = mcp_registration_lines(label)
 
-        hooks_path = _hooks_file(root, global_config=global_config, home=home)
-        _patch_hooks_json(hooks_path)
+        hooks_path = self._hooks_file(root, global_config=global_config, home=home)
+        patch_nested_hook_events(hooks_path, self.name, _HOOK_EVENTS)
         lines.append(f"hooks registered in {hooks_path}")
         lines.append("PreToolUse Bash: cat/head/rg/grep of indexed files → hc_*")
         lines.append("PostToolUse apply_patch|Edit|Write → hc update")
         lines.append("SessionStart: incremental hc update + hc_* reminder")
         lines.extend(apply_project_instructions(root=root, host=self.name))
 
-        skill_targets = [home / ".agents" / "skills"]
+        targets = [(home / ".agents" / "skills", home / ".agents" / "skills")]
         if not global_config:
-            skill_targets.append(root / ".agents" / "skills")
-        skills: list[str] = []
-        for dst in skill_targets:
-            skills = copy_skills(dst, skills_src(self.name))
-            rel: Path | str = dst
-            if not global_config and dst == root / ".agents" / "skills":
-                rel = Path(".agents/skills")
-            lines.append(f"skills installed in {rel}: {', '.join(skills)}")
-
+            targets.append((root / ".agents" / "skills", Path(".agents/skills")))
+        skills, skill_lines = install_skills_to_targets(targets, self.name)
+        lines.extend(skill_lines)
         return HostResult(name=self.name, title=self.title, lines=lines, skills=skills)
 
     def mcp_registered(self, root: Path, *, home: Path) -> bool:

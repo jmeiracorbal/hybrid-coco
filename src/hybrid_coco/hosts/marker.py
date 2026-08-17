@@ -11,7 +11,7 @@ from ..config import HC_DIR
 
 MARKER_FILE = "project.json"
 MARKER_VERSION = 1
-VALID_AGENTS = ("claude", "cursor", "codex", "opencode", "devin")
+from .common import HOST_NAMES as VALID_AGENTS
 
 # fixed forever — changing this would invalidate existing project IDs.
 _NAMESPACE = uuid.UUID("a7c1e5d0-9b2f-4e8a-b3c4-1d2e3f4a5b6c")
