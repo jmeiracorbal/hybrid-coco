@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Optional, Sequence
 
-from tree_sitter import Language, Parser, Query, QueryCursor
+from tree_sitter import Parser, Query, QueryCursor
 
 from .filters import (
     DEFAULT_QUERY_LIMIT,
@@ -16,150 +16,10 @@ from .filters import (
     validate_paging,
     validate_path_filter,
 )
+from .languages.registry import get_language_spec, get_structure_query, load_tree_sitter
 from .store import Store
 
 STRUCTURE_KINDS: tuple[str, ...] = ("function", "method", "class", "import")
-
-LanguageLoader = Callable[[], Language]
-
-_LANGUAGE_LOADERS: dict[str, LanguageLoader] = {}
-
-
-def _register_language(name: str, loader: LanguageLoader) -> None:
-    _LANGUAGE_LOADERS[name] = loader
-
-
-def _load_python() -> Language:
-    import tree_sitter_python as tsp
-    return Language(tsp.language())
-
-
-def _load_javascript() -> Language:
-    import tree_sitter_javascript as tsjs
-    return Language(tsjs.language())
-
-
-def _load_typescript() -> Language:
-    import tree_sitter_typescript as tsts
-    return Language(tsts.language_typescript())
-
-
-def _load_tsx() -> Language:
-    import tree_sitter_typescript as tsts
-    return Language(tsts.language_tsx())
-
-
-def _load_rust() -> Language:
-    import tree_sitter_rust as tsr
-    return Language(tsr.language())
-
-
-def _load_go() -> Language:
-    import tree_sitter_go as tsg
-    return Language(tsg.language())
-
-
-def _load_java() -> Language:
-    import tree_sitter_java as tsj
-    return Language(tsj.language())
-
-
-def _load_c() -> Language:
-    import tree_sitter_c as tsc
-    return Language(tsc.language())
-
-
-def _load_cpp() -> Language:
-    import tree_sitter_cpp as tscpp
-    return Language(tscpp.language())
-
-
-def _load_csharp() -> Language:
-    import tree_sitter_c_sharp as tscs
-    return Language(tscs.language())
-
-
-def _load_kotlin() -> Language:
-    import tree_sitter_kotlin as tsk
-    return Language(tsk.language())
-
-
-def _load_swift() -> Language:
-    import tree_sitter_swift as tss
-    return Language(tss.language())
-
-
-_register_language("python", _load_python)
-_register_language("javascript", _load_javascript)
-_register_language("typescript", _load_typescript)
-_register_language("tsx", _load_tsx)
-_register_language("rust", _load_rust)
-_register_language("go", _load_go)
-_register_language("java", _load_java)
-_register_language("c", _load_c)
-_register_language("cpp", _load_cpp)
-_register_language("csharp", _load_csharp)
-_register_language("kotlin", _load_kotlin)
-_register_language("swift", _load_swift)
-
-# kind → language → tree-sitter query (@name when available, else @node)
-_QUERIES: dict[str, dict[str, str]] = {
-    "function": {
-        "python": "(function_definition name: (identifier) @name)",
-        "javascript": "(function_declaration name: (identifier) @name)",
-        "typescript": "(function_declaration name: (identifier) @name)",
-        "tsx": "(function_declaration name: (identifier) @name)",
-        "rust": "(function_item name: (identifier) @name)",
-        "go": "(function_declaration name: (identifier) @name)",
-        "java": "(method_declaration name: (identifier) @name)",
-        "c": "(function_definition declarator: (function_declarator declarator: (identifier) @name))",
-        "cpp": "(function_definition declarator: (function_declarator declarator: (identifier) @name))",
-        "csharp": "(method_declaration name: (identifier) @name)",
-        "kotlin": "(function_declaration (simple_identifier) @name)",
-        "swift": "(function_declaration simple_identifier: (simple_identifier) @name)",
-    },
-    "method": {
-        "python": "(class_definition body: (block (function_definition name: (identifier) @name)))",
-        "javascript": "(method_definition name: (property_identifier) @name)",
-        "typescript": "(method_definition name: (property_identifier) @name)",
-        "tsx": "(method_definition name: (property_identifier) @name)",
-        "rust": "(impl_item body: (declaration_list (function_item name: (identifier) @name)))",
-        "go": "(method_declaration name: (field_identifier) @name)",
-        "java": "(method_declaration name: (identifier) @name)",
-        "cpp": "(function_definition declarator: (function_declarator declarator: (field_identifier) @name))",
-        "csharp": "(method_declaration name: (identifier) @name)",
-        "kotlin": "(class_declaration (function_declaration (simple_identifier) @name))",
-        "swift": "(class_declaration (function_declaration simple_identifier: (simple_identifier) @name))",
-    },
-    "class": {
-        "python": "(class_definition name: (identifier) @name)",
-        "javascript": "(class_declaration name: (identifier) @name)",
-        "typescript": "(class_declaration name: (identifier) @name)",
-        "tsx": "(class_declaration name: (identifier) @name)",
-        "rust": "(struct_item name: (type_identifier) @name)",
-        "go": "(type_declaration (type_spec name: (type_identifier) @name))",
-        "java": "(class_declaration name: (identifier) @name)",
-        "c": "(struct_specifier name: (type_identifier) @name)",
-        "cpp": "(class_specifier name: (type_identifier) @name)",
-        "csharp": "(class_declaration name: (identifier) @name)",
-        "kotlin": "(class_declaration (type_identifier) @name)",
-        "swift": "(class_declaration type_identifier: (type_identifier) @name)",
-    },
-    "import": {
-        "python": "(import_statement) @node",
-        "javascript": "(import_statement) @node",
-        "typescript": "(import_statement) @node",
-        "tsx": "(import_statement) @node",
-        "rust": "(use_declaration) @node",
-        "go": "(import_declaration) @node",
-        "java": "(import_declaration) @node",
-        "c": "(preproc_include) @node",
-        "cpp": "(preproc_include) @node",
-        "csharp": "(using_directive) @node",
-        "kotlin": "(import_header) @node",
-        "swift": "(import_declaration) @node",
-    },
-}
 
 _PARSER_CACHE: dict[str, Parser] = {}
 _QUERY_CACHE: dict[tuple[str, str], Query] = {}
@@ -218,18 +78,17 @@ def _include_match(language: str, kind: str, node) -> bool:
 
 def _parser_for(language: str) -> Parser:
     if language not in _PARSER_CACHE:
-        loader = _LANGUAGE_LOADERS[language]
-        _PARSER_CACHE[language] = Parser(loader())
+        _PARSER_CACHE[language] = Parser(load_tree_sitter(language))
     return _PARSER_CACHE[language]
 
 
 def _query_for(language: str, kind: str) -> Optional[Query]:
-    query_text = _QUERIES[kind].get(language)
+    query_text = get_structure_query(language, kind)
     if query_text is None:
         return None
     key = (language, kind)
     if key not in _QUERY_CACHE:
-        _QUERY_CACHE[key] = Query(_LANGUAGE_LOADERS[language](), query_text)
+        _QUERY_CACHE[key] = Query(load_tree_sitter(language), query_text)
     return _QUERY_CACHE[key]
 
 
@@ -312,9 +171,9 @@ def search_structure(
             continue
         if path_spec is not None and not matches_path(rel_path, path_spec):
             continue
-        if language not in _LANGUAGE_LOADERS:
+        if get_language_spec(language) is None:
             continue
-        if language not in _QUERIES[normalized_kind]:
+        if get_structure_query(language, normalized_kind) is None:
             continue
 
         file_path = root_resolved / rel_path
