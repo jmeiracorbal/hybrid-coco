@@ -63,7 +63,7 @@ After `hc_file_context` (or a symbol hit), Read only the needed range with `offs
 
 - **`hc_*` unavailable** → `/hc-init`, then restart Claude Code if MCP was just registered.
 - **Symbol missing** → language may be unsupported; fall back to Grep. Or run `hc doctor` / `/hc-init` if the index is empty.
-- **gtk-ai truncates answers** → set `GTK_MCP_PASSTHROUGH_PATTERNS="hc_"`.
+- **Output is incomplete or unclear** → narrow the query with `path`, `lang`, or `limit`, then retry.
 
 ## References
 

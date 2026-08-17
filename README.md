@@ -166,36 +166,17 @@ Adding a language requires implementing a ~100-line parser in `src/hybrid_coco/p
 
 **Incremental by default**: `hc update` re-indexes only files whose SHA-256 has changed. Full re-index is only needed on first run or after `.gitignore` changes.
 
-## Using with gtk-ai
+## Boundaries
 
-hybrid-coco and [gtk-ai](https://github.com/jmeiracorbal/gtk-ai) are independent tools that work well together:
+hybrid-coco is a single local component:
 
-- **hybrid-coco**: reduces tokens on *code navigation* (`Read`, `Grep`, file structure queries)
-- **gtk-ai**: reduces tokens on *command output* (`find`, `ls`, `git`, `grep` and other Bash tools)
+- SQLite storage in the project workspace
+- tree-sitter parsers for symbol extraction
+- CLI (`hc`) for indexing and querying
+- MCP server (`hc_*`) for Claude Code
+- hooks, awareness, and skills shipped with the package
 
-When used together, gtk-ai will by default compress all MCP tool output, including `hc_*` responses. To prevent that, add `hc_` to `GTK_MCP_PASSTHROUGH_PATTERNS` in the gtk-ai hook script:
-
-```bash
-# ~/.claude/hooks/gtkai-post-tool-use.sh
-export GTK_MCP_PASSTHROUGH_PATTERNS="hc_"
-```
-
-This tells gtk-ai to let `hc_search`, `hc_symbol`, `hc_file_context`, and `hc_status` responses through uncompressed. hybrid-coco already returns minimal output, so compressing it further would lose information.
-
-Neither tool requires the other. Configure this only if you have both installed.
-
-## Relation to CocoIndex
-
-hybrid-coco is inspired by [CocoIndex](https://cocoindex.io) but makes different trade-offs:
-
-| | CocoIndex | hybrid-coco |
-|---|---|---|
-| Search | Vector (semantic) | FTS5 trigram (lexical) |
-| Backend | PostgreSQL + pgvector | SQLite (single file) |
-| Infrastructure | Docker required | Zero |
-| Install | Complex | `curl ... | bash && hc init` |
-| Granularity | Chunks | Symbols (functions, classes) |
-| Target | Large-scale RAG | Local dev, agent token reduction |
+It does not require companion services, external proxies, background daemons, or additional infrastructure.
 
 ## Development
 

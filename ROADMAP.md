@@ -11,7 +11,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 - SQLite only — no PostgreSQL, no Docker, no always-on server process
 - FTS5 + tree-sitter **before** any embedding / vector layer
 - MCP registered in `.claude/settings.json` (Claude Code), not desktop config
-- Tool names `hc_*` must never be truncated (gtk-ai passthrough: `GTK_MCP_PASSTHROUGH_PATTERNS="hc_"`)
+- Tool names `hc_*` are part of the public interface and must remain stable
 
 ## Current baseline (done)
 
@@ -70,7 +70,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 
 **Why:** operators and agents need a single health check and a clean wipe path; version drift confuses installs.
 
-- `hc doctor` — index present, schema readable, languages detected, MCP/hooks registration hints, gtk-ai passthrough reminder
+- `hc doctor` — index present, schema readable, languages detected, MCP/hooks registration hints
 - `hc reset` — delete index DB (optional wipe of local settings); confirmation unless `-f`
 - Single source of truth for version: package, `hc --version`, plugin `marketplace.json` / `plugin.json`
 

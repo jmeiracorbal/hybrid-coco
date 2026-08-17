@@ -195,11 +195,11 @@ def _check_versions() -> DoctorCheck:
     return DoctorCheck("version", True, ", ".join(found), "ok")
 
 
-def _check_gtkai_hint() -> DoctorCheck:
+def _check_tool_names_hint() -> DoctorCheck:
     return DoctorCheck(
-        "gtk-ai",
+        "tool names",
         True,
-        'if using gtk-ai, set GTK_MCP_PASSTHROUGH_PATTERNS="hc_" so hc_* output is not compressed',
+        "hc_* names are part of the public interface; keep them stable and unmodified",
         "info",
     )
 
@@ -215,7 +215,7 @@ def run_doctor(root: Path) -> DoctorReport:
         checks.append(_check_versions())
         checks.append(_check_mcp(root))
         checks.append(_check_hooks())
-        checks.append(_check_gtkai_hint())
+        checks.append(_check_tool_names_hint())
         return DoctorReport(checks)
 
     checks.append(_check_schema(root))
@@ -224,7 +224,7 @@ def run_doctor(root: Path) -> DoctorReport:
     checks.append(_check_versions())
     checks.append(_check_mcp(root))
     checks.append(_check_hooks())
-    checks.append(_check_gtkai_hint())
+    checks.append(_check_tool_names_hint())
     return DoctorReport(checks)
 
 
