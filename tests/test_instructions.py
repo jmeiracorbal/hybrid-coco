@@ -118,21 +118,18 @@ def test_strip_legacy_deletes_file_that_only_had_the_include(tmp_path: Path):
 
 def test_apply_project_instructions_rejects_unknown_host(tmp_path: Path):
     with pytest.raises(ValueError, match="unknown host"):
-        apply_project_instructions(root=tmp_path, host="nope", home=tmp_path / "home")
+        apply_project_instructions(root=tmp_path, host="nope")
 
 
-def test_apply_project_instructions_does_not_write_project_instruction_files(tmp_path: Path):
+def test_apply_project_instructions_does_not_write_instruction_files(tmp_path: Path):
     home = tmp_path / "home"
     home.mkdir()
     root = tmp_path / "proj"
     root.mkdir()
-    apply_project_instructions(root=root, host="claude", home=home)
+    apply_project_instructions(root=root, host="claude")
     assert not (root / "AGENTS.md").exists()
     assert not (root / "CLAUDE.md").exists()
-    global_md = (home / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
-    assert SECTION_START in global_md
-    assert GLOBAL_BODY.strip() in global_md
-    assert "Decision tree" not in global_md
+    assert not (home / ".claude" / "CLAUDE.md").exists()
     marker = read_marker(root)
     assert marker is not None
     assert marker["id"] == project_id_from_path(root.resolve())
@@ -187,14 +184,22 @@ def test_find_index_root_requires_marker_and_index(tmp_path: Path):
     assert find_index_root(src) == tmp_path.resolve()
 
 
-def test_install_instructions_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_install_instructions_cli_strips_legacy_and_writes_global(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     home = tmp_path / "home"
-    home.mkdir()
+    claude_dir = home / ".claude"
+    claude_dir.mkdir(parents=True)
+    (claude_dir / "hybrid-coco.md").write_text("stale\n", encoding="utf-8")
+    (claude_dir / "CLAUDE.md").write_text("User notes\n@hybrid-coco.md\n", encoding="utf-8")
     monkeypatch.setattr(Path, "home", lambda: home)
     runner = CliRunner()
     result = runner.invoke(main, ["install-instructions", "--host", "claude"])
     assert result.exit_code == 0, result.output
-    text = (home / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+    assert not (claude_dir / "hybrid-coco.md").exists()
+    text = (claude_dir / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "User notes" in text
+    assert "@hybrid-coco.md" not in text
     assert SECTION_START in text
     assert "Decision tree" not in text
     result2 = runner.invoke(main, ["install-instructions", "--host", "all"])

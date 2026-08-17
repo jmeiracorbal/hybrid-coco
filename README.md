@@ -72,7 +72,7 @@ Baseline = recursive search plus reading whole files. hybrid-coco = `hc symbol` 
 curl -fsSL https://raw.githubusercontent.com/jmeiracorbal/hybrid-coco/main/install.sh | bash
 ```
 
-Installs `hc` and runs `hc init` (Claude Code by default). Other hosts: `hc init --host cursor|codex|opencode|devin` or `--host all`. Requires Python 3.11+ (detects uv, pipx, or pip automatically).
+Installs the `hc` package (uv, pipx, or pip), Claude Code hooks, and the short global instruction gate (`hc install-instructions --host claude`). It does **not** run `hc init`. Other hosts: `hc install-instructions --host cursor|codex|opencode|devin` or `--host all`. Requires Python 3.11+.
 
 **Option B: Claude Code plugin**
 
@@ -104,7 +104,7 @@ hc init --host all      # every supported host
 - Registers the MCP server in the host **project** config
 - Installs host-native hooks that intercept `Read` and `Grep` (or the host's equivalent)
 - Installs host-adapted agent skills (`hybrid-coco`, `hc-init`, `hc-search`) — same names, host-specific MCP paths, native tools, and hook events
-- Activates the project the same way mnemo does: writes `.hybrid-coco/project.json` (`version`, deterministic `id`, `agents`) and copies the full protocol to `.hybrid-coco/hybrid-coco.md`. It does **not** append to project `AGENTS.md` / `CLAUDE.md`. The short conditional protocol lives in user-global instruction files (`hc install-instructions`, also run by `hc init` so `pip install hybrid-coco && hc init` is enough)
+- Activates the project the same way mnemo does: writes `.hybrid-coco/project.json` (`version`, deterministic `id`, `agents`) and copies the full protocol to `.hybrid-coco/hybrid-coco.md`. It does **not** append to project `AGENTS.md` / `CLAUDE.md`, and it does **not** write user-global instruction files. The short conditional protocol is installed once by `install.sh` / `hc install-instructions`.
 
 Restart the agent host to activate.
 
@@ -140,7 +140,7 @@ Skills keep the same names on every host (`hybrid-coco`, `hc-init`, `hc-search`)
 Instruction files follow the same split as mnemo: install globally, activate per project.
 
 ```
-# global (once — install.sh / hc install-instructions / hc init)
+# global (once — install.sh / hc install-instructions)
 ~/.claude/CLAUDE.md                         ← short <!-- hybrid-coco:start --> gate
 ~/.cursor/rules/hybrid-coco.mdc             ← alwaysApply: true, same gate
 ~/.codex/AGENTS.md
@@ -153,7 +153,7 @@ project/
 └── .hybrid-coco/project.json     ← {version, id, agents} — like mnemo's `.mnemo`
 ```
 
-The global text is conditional: if `.hybrid-coco/project.json` is missing, malformed, or has no `id`, skip hybrid-coco entirely. Hooks use the same gate. `hc init` does not write project `AGENTS.md`, `CLAUDE.md`, or `.cursor/rules/hybrid-coco.mdc`. Re-running `hc install-instructions` refreshes the managed block without duplicating it.
+The global text is conditional: if `.hybrid-coco/project.json` is missing, malformed, or has no `id`, skip hybrid-coco entirely. Hooks use the same gate. `hc init` does not write project `AGENTS.md`, `CLAUDE.md`, or `.cursor/rules/hybrid-coco.mdc`, and does not touch the global instruction files. Re-running `hc install-instructions` refreshes the managed block without duplicating it.
 
 ## CLI reference
 

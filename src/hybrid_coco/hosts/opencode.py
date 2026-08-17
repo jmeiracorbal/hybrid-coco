@@ -82,7 +82,7 @@ class OpenCodeHost:
         lines.append(f"plugin installed at {plugin}")
         lines.append("tool.execute.before: read/grep → hc_*")
         lines.append("tool.execute.after: write/edit → hc update")
-        lines.extend(apply_project_instructions(root=root, host=self.name, home=home))
+        lines.extend(apply_project_instructions(root=root, host=self.name))
 
         skill_targets = [home / ".config" / "opencode" / "skills"]
         if not global_config:

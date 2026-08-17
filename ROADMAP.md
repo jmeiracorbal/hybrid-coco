@@ -26,7 +26,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status` (path/lang/offset/limit on search, symbol & structure) |
 | Hosts | Claude Code (default); Cursor; Codex; OpenCode; Devin |
 | Skills | Host-adapted `hybrid-coco` / `hc-init` / `hc-search` (same names; bodies match MCP/hooks/native tools) |
-| Awareness | mnemo split: short conditional gate in user-global instruction files (`~/.claude/CLAUDE.md`, `~/.cursor/rules/hybrid-coco.mdc`, `~/.codex/AGENTS.md`, …). `hc init` writes `.hybrid-coco/project.json` (`id` required) + protocol `.hybrid-coco/hybrid-coco.md`. No project `AGENTS.md` / `CLAUDE.md`. Hooks no-op without a valid marker `id` |
+| Awareness | mnemo split: `install.sh` / `hc install-instructions` writes a short conditional gate in user-global instruction files. `hc init` only writes `.hybrid-coco/project.json` (`id` required) + protocol `.hybrid-coco/hybrid-coco.md`. No project `AGENTS.md` / `CLAUDE.md`. Hooks no-op without a valid marker `id` |
 | Hooks | Host-native intercept of Read/Grep (or equivalent) → `hc_*`; write/edit → `hc update`; session start incremental update where the host has the event |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 

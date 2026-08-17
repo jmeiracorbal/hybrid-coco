@@ -79,7 +79,7 @@ class CodexHost:
         lines.append("PreToolUse Bash: cat/head/rg/grep of indexed files → hc_*")
         lines.append("PostToolUse apply_patch|Edit|Write → hc update")
         lines.append("SessionStart: incremental hc update + hc_* reminder")
-        lines.extend(apply_project_instructions(root=root, host=self.name, home=home))
+        lines.extend(apply_project_instructions(root=root, host=self.name))
 
         skill_targets = [home / ".agents" / "skills"]
         if not global_config:

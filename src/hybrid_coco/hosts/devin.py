@@ -96,7 +96,7 @@ class DevinHost:
         lines.append("PreToolUse ^(read|grep)$ → hc_*")
         lines.append("PostToolUse ^(write|edit)$ → hc update")
         lines.append("SessionStart: incremental hc update + hc_* reminder")
-        lines.extend(apply_project_instructions(root=root, host=self.name, home=home))
+        lines.extend(apply_project_instructions(root=root, host=self.name))
 
         skill_targets = [home / ".config" / "devin" / "skills"]
         if not global_config:

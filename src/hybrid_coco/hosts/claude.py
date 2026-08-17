@@ -87,7 +87,7 @@ class ClaudeHost:
         for tool in MCP_TOOLS:
             lines.append(tool)
 
-        lines.extend(apply_project_instructions(root=root, host=self.name, home=home))
+        lines.extend(apply_project_instructions(root=root, host=self.name))
 
         copy_hook_scripts(claude_dir / "hooks", _HOOK_NAMES)
         lines.append("hooks installed in ~/.claude/hooks/")

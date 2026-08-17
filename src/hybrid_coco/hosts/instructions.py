@@ -1,4 +1,4 @@
-"""mnemo-style install: global short gate; project init only writes the marker."""
+"""mnemo-style install: global short gate is separate from project init."""
 
 from __future__ import annotations
 
@@ -155,7 +155,7 @@ def strip_legacy_global_claude_include(home: Path) -> list[str]:
     return actions
 
 
-def apply_project_instructions(*, root: Path, host: str, home: Path) -> list[str]:
+def apply_project_instructions(*, root: Path, host: str) -> list[str]:
     if host not in {"claude", "cursor", "codex", "opencode", "devin"}:
         raise ValueError(f"unknown host: {host}")
 
@@ -164,7 +164,4 @@ def apply_project_instructions(*, root: Path, host: str, home: Path) -> list[str
     lines.append(f"awareness written to {AWARENESS_REL.as_posix()}")
     add_agent(root, host)
     lines.append(f"project marker: agent {host}")
-    lines.extend(strip_legacy_global_claude_include(home))
-    dest = install_global_instructions(home=home, host=host)
-    lines.append(f"global instructions: {dest}")
     return lines

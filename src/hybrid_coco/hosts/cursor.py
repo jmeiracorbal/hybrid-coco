@@ -93,7 +93,7 @@ class CursorHost:
         lines.append("preToolUse/beforeReadFile: Read|Grep → hc_* suggestion")
         lines.append("postToolUse/afterFileEdit: Write|StrReplace → hc update")
         lines.append("sessionStart: incremental hc update when an index exists")
-        lines.extend(apply_project_instructions(root=root, host=self.name, home=home))
+        lines.extend(apply_project_instructions(root=root, host=self.name))
 
         skill_targets = [home / ".cursor" / "skills"]
         if not global_config:
