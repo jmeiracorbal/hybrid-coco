@@ -5,12 +5,18 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Optional
+from typing import Mapping
 
 from .config import HC_DIR, SETTINGS_FILE
 from .parsers import KNOWN_LANGUAGES
 
 REQUIRED_KEYS = ("include", "exclude", "languages")
+
+DEFAULT_CONFIG = """\
+include = []
+exclude = []
+languages = {}
+"""
 
 
 class SettingsError(ValueError):
@@ -67,15 +73,21 @@ def _require_languages(data: dict, origin: Path) -> dict[str, str]:
     return mapping
 
 
-def load_settings(root: Path) -> Optional[ProjectSettings]:
-    """Return project settings, or None when the file is absent.
+def ensure_settings(root: Path) -> bool:
+    """Write the default config.toml when it is missing. Returns True if created."""
+    path = settings_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file():
+        return False
+    path.write_text(DEFAULT_CONFIG, encoding="utf-8")
+    return True
 
-    A present file must contain include, exclude, and languages. Missing keys
-    or invalid types abort with SettingsError.
-    """
+
+def load_settings(root: Path) -> ProjectSettings:
+    """Return project settings. The file must exist and contain every required key."""
     path = settings_path(root)
     if not path.is_file():
-        return None
+        raise SettingsError(f"{path}: missing — run: hc init {root}")
 
     try:
         raw = path.read_text(encoding="utf-8")

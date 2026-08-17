@@ -17,7 +17,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 
 | Area | State |
 |------|--------|
-| Indexer | Incremental SHA-256 walk, gitignore-aware, `--exclude` + optional `.hybrid-coco/config.toml` |
+| Indexer | Incremental SHA-256 walk, gitignore-aware, `.hybrid-coco/config.toml` + CLI `--exclude` |
 | Store | SQLite files + symbols + FTS5 trigram |
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
 | CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init` |
@@ -128,9 +128,9 @@ Tree-sitter query / by-example patterns over the working tree (or indexed ASTs),
 
 ## Phase 08 — Settings file (later)
 
-Project-level include/exclude / language overrides (e.g. YAML under `.hybrid-coco/`), replacing ad-hoc CLI-only excludes. Must remain optional — defaults keep `pip install && hc init` zero-config.
+Project-level include/exclude / language overrides in `.hybrid-coco/config.toml`. The file is always created on `hc init` / `hc index` with explicit empty lists; all keys are required.
 
-**Done:** optional `.hybrid-coco/config.toml` (`include`, `exclude`, `languages`); absent file = zero-config; present file requires all keys; CLI `--exclude` still applies; `hc reset` keeps the config file; `hc doctor` validates it.
+**Done:** `.hybrid-coco/config.toml` (`include`, `exclude`, `languages`) is written if missing; load always reads the file (no absent-file path); CLI `--exclude` still applies; `hc reset` keeps the config file; `hc doctor` fails when it is missing or invalid.
 
 ## Phase 09 — Embeddings optional layer (deferred)
 

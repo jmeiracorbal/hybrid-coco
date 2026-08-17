@@ -20,8 +20,20 @@ def _write_config(root: Path, body: str) -> None:
     (hc / SETTINGS_FILE).write_text(body, encoding="utf-8")
 
 
-def test_load_settings_absent_returns_none(tmp_path: Path):
-    assert load_settings(tmp_path) is None
+def test_load_settings_absent_fails(tmp_path: Path):
+    with pytest.raises(SettingsError, match="missing"):
+        load_settings(tmp_path)
+
+
+def test_index_writes_default_config(tmp_path: Path):
+    (tmp_path / "a.py").write_text("def x():\n    return 1\n", encoding="utf-8")
+    index_path(tmp_path)
+    cfg = tmp_path / HC_DIR / SETTINGS_FILE
+    assert cfg.is_file()
+    text = cfg.read_text(encoding="utf-8")
+    assert "include = []" in text
+    assert "exclude = []" in text
+    assert "languages = {}" in text
 
 
 def test_load_settings_missing_key_fails(tmp_path: Path):

@@ -12,7 +12,7 @@ import pathspec
 
 from .config import ALWAYS_IGNORE, HC_DIR, ensure_index_dir
 from .parsers import parse_file, resolve_language
-from .settings import load_settings
+from .settings import ensure_settings, load_settings
 from .store import Store
 
 log = logging.getLogger(__name__)
@@ -122,19 +122,15 @@ def index_path(
 ) -> IndexResult:
     """Index all supported files under root (incremental unless force=True)."""
     root = root.resolve()
+    db_path = ensure_index_dir(root)
+    ensure_settings(root)
     settings = load_settings(root)
-    if settings is None:
-        include_patterns: Sequence[str] = ()
-        settings_exclude: Sequence[str] = ()
-        language_overrides: dict[str, str] = {}
-    else:
-        include_patterns = settings.include
-        settings_exclude = settings.exclude
-        language_overrides = dict(settings.languages)
+    include_patterns = settings.include
+    settings_exclude = settings.exclude
+    language_overrides = dict(settings.languages)
 
     include_spec = build_exclude_spec(include_patterns)
     exclude_spec = build_exclude_spec(tuple(settings_exclude) + tuple(exclude))
-    db_path = ensure_index_dir(root)
     store = Store(db_path)
     gitignore = _load_gitignore(root)
     result = IndexResult()

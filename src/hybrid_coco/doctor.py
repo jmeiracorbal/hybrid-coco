@@ -210,16 +210,14 @@ def _check_project_settings(root: Path) -> DoctorCheck:
     if not path.is_file():
         return DoctorCheck(
             "settings",
-            True,
-            f"no {path.name} (zero-config)",
-            "ok",
+            False,
+            f"missing at {path} — run: hc init {root}",
+            "error",
         )
     try:
         settings = load_settings(root)
     except SettingsError as exc:
         return DoctorCheck("settings", False, str(exc), "error")
-    if settings is None:
-        return DoctorCheck("settings", False, f"{path} disappeared during read", "error")
     return DoctorCheck(
         "settings",
         True,

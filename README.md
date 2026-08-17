@@ -142,11 +142,19 @@ hc serve                 Start MCP server (stdio)
 hc init [PATH]           Index + .gitignore entry + register MCP + install hooks
 ```
 
-`--exclude` accepts gitignore-style patterns and may be repeated. Project settings in `.hybrid-coco/config.toml` (optional) add include/exclude and language overrides; CLI `--exclude` is combined with the file's `exclude` list.
+`--exclude` accepts gitignore-style patterns and may be repeated. They are combined with `exclude` in `.hybrid-coco/config.toml`. `hc init` / `hc index` always write that file if it is missing.
 
 ## Project settings
 
-Indexing is zero-config when `.hybrid-coco/config.toml` is absent. If the file exists, it must define all three keys (`include`, `exclude`, `languages`) — missing keys fail instead of inventing defaults.
+`.hybrid-coco/config.toml` is always created on `hc init` or `hc index`. Empty lists mean no extra restriction. All three keys are required; missing keys fail instead of inventing values.
+
+```toml
+include = []
+exclude = []
+languages = {}
+```
+
+Example with restrictions:
 
 ```toml
 include = ["src/**"]
@@ -161,7 +169,7 @@ exclude = ["**/generated/**"]
 - `exclude`: gitignore-style patterns, merged with `hc index --exclude`.
 - `languages`: extension → parser language (`python`, `rust`, `cpp`, …). Overrides the built-in extension map.
 
-`hc reset` deletes the index database and leaves `config.toml` in place. `hc doctor` reports whether settings are absent, valid, or invalid.
+`hc reset` deletes the index database and leaves `config.toml` in place. `hc doctor` fails if the file is missing or invalid.
 
 ## Supported languages
 
