@@ -145,12 +145,37 @@ Read("src/some_file.py", offset=47, limit=40)
 ## If MCP tools are unavailable
 
 ```bash
-hc init        # index + register MCP server
+hc init        # index + register MCP server + skills/hooks
 # then restart Claude Code
 ```
+
+Lifecycle skills (after `hc init`): `/hc-init` (setup/repair), `/hc-search` (query). Prefer `hc update` over full `hc index` when `.hybrid-coco/index.db` already exists.
 AWARENESS_EOF
 
-# ── 5. Patch ~/.claude/settings.json ─────────────────────────────────────────
+# ── 5. Install agent skills ───────────────────────────────────────────────────
+info "Installing agent skills from package assets..."
+
+ASSETS_SKILLS=$("$PYTHON" -c "
+import hybrid_coco, os
+print(os.path.join(os.path.dirname(hybrid_coco.__file__), 'assets', 'skills'))
+" 2>/dev/null)
+
+SKILLS_DIR="$HOME/.claude/skills"
+if [ -d "$ASSETS_SKILLS" ]; then
+  mkdir -p "$SKILLS_DIR"
+  for skill in "$ASSETS_SKILLS"/*; do
+    [ -d "$skill" ] || continue
+    [ -f "$skill/SKILL.md" ] || continue
+    name=$(basename "$skill")
+    rm -rf "$SKILLS_DIR/$name"
+    cp -a "$skill" "$SKILLS_DIR/$name"
+    info "  skill: $name"
+  done
+else
+  warn "Package skills not found — skipped"
+fi
+
+# ── 6. Patch ~/.claude/settings.json ─────────────────────────────────────────
 info "Patching Claude Code settings..."
 
 "$PYTHON" - << PYEOF
@@ -209,7 +234,7 @@ else:
     print("[hybrid-coco] settings.json already configured — no changes needed")
 PYEOF
 
-# ── 6. Add @hybrid-coco.md to CLAUDE.md ──────────────────────────────────────
+# ── 7. Add @hybrid-coco.md to CLAUDE.md ──────────────────────────────────────
 if [ -f "$CLAUDE_MD" ]; then
   if grep -q "@hybrid-coco.md" "$CLAUDE_MD"; then
     info "CLAUDE.md already references @hybrid-coco.md"
@@ -231,6 +256,7 @@ echo "  Next steps:"
 echo "  1. Restart Claude Code (or reload the window)"
 echo "  2. In any project: hc init"
 echo "  3. Claude will now prefer hc_* tools over Read/Grep"
+echo "  4. Skills available: hybrid-coco, /hc-init, /hc-search"
 echo ""
 echo "  To verify: hc --version"
 echo ""

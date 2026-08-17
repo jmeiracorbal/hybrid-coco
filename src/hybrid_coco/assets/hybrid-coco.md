@@ -55,6 +55,8 @@ Read("src/some_file.py", offset=47, limit=40)
 ## If MCP tools are unavailable
 
 ```bash
-hc init        # index + register MCP server
+hc init        # index + register MCP server + skills/hooks
 # then restart Claude Code
 ```
+
+Lifecycle skills (after `hc init`): `/hc-init` (setup/repair), `/hc-search` (query). Prefer `hc update` over full `hc index` when `.hybrid-coco/index.db` already exists.

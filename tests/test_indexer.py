@@ -184,6 +184,7 @@ def test_init_adds_hybrid_coco_gitignore(fixture_dir: Path, monkeypatch: pytest.
             "claude_md_updated": True,
             "hooks_installed": True,
             "settings_patched": True,
+            "skills_installed": ["hybrid-coco", "hc-init", "hc-search"],
         },
     )
     runner = CliRunner()
@@ -205,6 +206,28 @@ def test_ensure_hc_gitignore_respects_existing_entry(tmp_path: Path):
     gi = tmp_path / ".gitignore"
     gi.write_text("node_modules/\n.hybrid-coco/\n")
     assert ensure_hc_gitignore(tmp_path) is False
+
+
+def test_install_global_writes_skills(tmp_path: Path):
+    from hybrid_coco.cli import _install_global
+
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    result = _install_global(claude_dir)
+
+    assert result["awareness_written"] is True
+    assert set(result["skills_installed"]) == {"hybrid-coco", "hc-init", "hc-search"}
+    for name in ("hybrid-coco", "hc-init", "hc-search"):
+        skill_md = claude_dir / "skills" / name / "SKILL.md"
+        assert skill_md.is_file()
+        text = skill_md.read_text(encoding="utf-8")
+        assert text.startswith("---")
+        assert f"name: {name}" in text
+    assert (claude_dir / "skills" / "hybrid-coco" / "references" / "mcp-tools.md").is_file()
+
+    # idempotent overwrite
+    result2 = _install_global(claude_dir)
+    assert set(result2["skills_installed"]) == {"hybrid-coco", "hc-init", "hc-search"}
 
 
 # ── Test 8: doctor + reset ────────────────────────────────────────────────────
