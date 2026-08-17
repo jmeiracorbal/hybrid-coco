@@ -14,6 +14,8 @@ Search or navigate the hybrid-coco index for: $ARGUMENTS
 
 This skill **queries** only. It does not run `hc init` / `hc index` unless tools are unavailable (then hand off to `/hc-init`).
 
+Do not open files with Claude Code `Read` or `Grep` to answer this query. Use `hc_*` first.
+
 ## Choose the tool
 
 | Intent | Call |
@@ -38,7 +40,7 @@ Omit a filter for no restriction.
 ## If MCP tools are missing
 
 1. Call `hc_status` if present; otherwise check for `.hybrid-coco/index.db`
-2. Hand off to `/hc-init` — do not full-reindex from this skill as a first step
+2. Hand off to `/hc-init` (`hc init .`) — do not full-reindex from this skill as a first step
 
 ## Present results
 

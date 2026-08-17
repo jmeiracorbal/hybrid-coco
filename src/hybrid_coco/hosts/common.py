@@ -79,8 +79,23 @@ def mcp_registered_json(path: Path, *, servers_key: str = "mcpServers") -> bool:
     return isinstance(servers, dict) and "hybrid-coco" in servers
 
 
-def copy_skills(dst_root: Path) -> list[str]:
-    src_root = ASSETS_DIR / "skills"
+def skills_src(host: str) -> Path:
+    roots = {
+        "claude": ASSETS_DIR / "skills",
+        "cursor": ASSETS_DIR / "hosts" / "cursor" / "skills",
+        "codex": ASSETS_DIR / "hosts" / "codex" / "skills",
+        "opencode": ASSETS_DIR / "hosts" / "opencode" / "skills",
+        "devin": ASSETS_DIR / "hosts" / "devin" / "skills",
+    }
+    if host not in roots:
+        raise ValueError(f"unknown host: {host}")
+    src = roots[host]
+    if not src.is_dir():
+        raise FileNotFoundError(f"packaged skills missing for host {host}: {src}")
+    return src
+
+
+def copy_skills(dst_root: Path, src_root: Path) -> list[str]:
     if not src_root.is_dir():
         raise FileNotFoundError(f"packaged skills missing at {src_root}")
 

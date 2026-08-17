@@ -1,17 +1,17 @@
 ---
 name: hc-init
-description: Initialize or repair hybrid-coco in this project — install, index if missing, register MCP/hooks. Prefer over full reindex when an index already exists.
+description: Initialize or repair hybrid-coco for Devin — index if missing, register .devin MCP/hooks/skills. Prefer over full reindex when an index already exists.
 user-invokable: true
 ---
 
-# hc-init
+# hc-init (Devin)
 
-Own the hybrid-coco lifecycle for the current project. Prefer the smallest action that restores a working index + MCP wiring.
+Own the hybrid-coco lifecycle for this Devin project. Prefer the smallest action that restores a working index + MCP wiring.
 
 ## Rules (anti-storm)
 
 - If `.hybrid-coco/index.db` **exists**, do **not** run `hc index` unless the user asked for a full rebuild or `hc doctor` / a failed query made that necessary after `hc reset`.
-- SessionStart / PostToolUse `Write|Edit` may already run `hc update`. Do not stack a full reindex on top.
+- Devin `SessionStart` / `PostToolUse` may already run `hc update`. Do not stack a full reindex on top.
 - Prefer `hc update .` for staleness; prefer `hc doctor` for diagnosis.
 
 ## Procedure
@@ -31,10 +31,10 @@ Look for `.hybrid-coco/index.db` at the project root.
 If **missing**:
 
 ```bash
-hc init .
+hc init . --host devin
 ```
 
-Then report: files/symbols indexed, index path, that Claude Code may need a restart to load MCP from `.claude/settings.json`.
+Then report: files/symbols indexed, index path, that Devin may need a restart to load MCP from `.devin/mcp_config.json`.
 
 If **present**: skip `hc init` unless MCP/hooks are clearly unregistered (see step 4).
 
@@ -46,17 +46,19 @@ hc status .
 
 - Files/symbols look wrong after edits → `hc update .`
 - Suspect corruption → `hc doctor .`
-- User wants a wipe → `hc reset -f` (add `--all` only if they also want the project MCP entry removed), then `hc init .`
+- User wants a wipe → `hc reset -f` (add `--all` only if they also want the project MCP entry removed), then `hc init . --host devin`
 
 ### 4. MCP / hooks
 
 If `hc_status` / `hc_*` tools are unavailable after an index exists:
 
 ```bash
-hc init .
+hc init . --host devin
 ```
 
-`hc init` is idempotent: re-registers MCP in `.claude/settings.json`, refreshes hooks/skills under `~/.claude/`. Restart Claude Code if MCP was newly registered.
+Confirm `.devin/mcp_config.json` has `hybrid-coco`, `.devin/hooks.v1.json` is the hooks object itself (no wrapper `hooks` key) with matchers `^(read|grep)$` and `^(write|edit)$`, and skills exist under `.devin/skills/`. Restart Devin if MCP was newly registered.
+
+Default `hc init` (no `--host`) only configures Claude Code. Do not run it expecting Devin wiring.
 
 ### 5. Report
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .common import MCP_TOOLS, copy_skills, hook_command, load_json_object, write_json
+from .common import MCP_TOOLS, copy_skills, hook_command, load_json_object, skills_src, write_json
 from .tomlcfg import mcp_registered_toml, remove_codex_mcp, upsert_codex_mcp
 from .types import HostResult
 
@@ -84,7 +84,7 @@ class CodexHost:
             skill_targets.append(root / ".agents" / "skills")
         skills: list[str] = []
         for dst in skill_targets:
-            skills = copy_skills(dst)
+            skills = copy_skills(dst, skills_src(self.name))
             rel: Path | str = dst
             if not global_config and dst == root / ".agents" / "skills":
                 rel = Path(".agents/skills")

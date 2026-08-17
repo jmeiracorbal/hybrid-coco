@@ -11,7 +11,7 @@ Own the hybrid-coco lifecycle for the current project. Prefer the smallest actio
 ## Rules (anti-storm)
 
 - If `.hybrid-coco/index.db` **exists**, do **not** run `hc index` unless the user asked for a full rebuild or `hc doctor` / a failed query made that necessary after `hc reset`.
-- SessionStart / PostToolUse may already run `hc update`. Do not stack a full reindex on top.
+- SessionStart / PostToolUse `Write|Edit` may already run `hc update`. Do not stack a full reindex on top.
 - Prefer `hc update .` for staleness; prefer `hc doctor` for diagnosis.
 
 ## Procedure
@@ -32,13 +32,9 @@ If **missing**:
 
 ```bash
 hc init .
-# or: hc init . --host cursor
-# or: hc init . --host codex
-# or: hc init . --host opencode
-# or: hc init . --host all
 ```
 
-Then report: files/symbols indexed, index path, that the agent host may need a restart to load MCP.
+Then report: files/symbols indexed, index path, that Claude Code may need a restart to load MCP from `.claude/settings.json`.
 
 If **present**: skip `hc init` unless MCP/hooks are clearly unregistered (see step 4).
 
@@ -58,10 +54,9 @@ If `hc_status` / `hc_*` tools are unavailable after an index exists:
 
 ```bash
 hc init .
-# target another host: hc init . --host cursor
 ```
 
-`hc init` is idempotent: re-registers MCP, skills, and hooks for the selected host (default: Claude Code). Restart the agent host if MCP was newly registered.
+`hc init` is idempotent: re-registers MCP in `.claude/settings.json`, refreshes hooks/skills under `~/.claude/`. Restart Claude Code if MCP was newly registered.
 
 ### 5. Report
 

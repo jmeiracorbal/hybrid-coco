@@ -9,8 +9,8 @@ Index-based code navigation. Same context quality, fewer tokens.
 - `.hybrid-coco/index.db` in the project workspace
 - `hc index` / `hc update` / `hc query` / `hc symbol` / `hc file-context` / `hc snippet` / `hc structure`
 - MCP tools: `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status`
-- Claude Code hooks and skills (`hybrid-coco`, `hc-init`, `hc-search`)
-- Cursor MCP, skills, and hooks (`hc init --host cursor`)
+- Host-adapted skills (`hybrid-coco`, `hc-init`, `hc-search`) — same names, host-specific MCP/hooks/native tools
+- Host wiring via `hc init --host`: Claude Code (default), Cursor, Codex, OpenCode, Devin
 
 ## Decision tree
 
@@ -68,8 +68,12 @@ hc_snippet("src/some_file.py", 47, 86)
 ## If MCP tools are unavailable
 
 ```bash
-hc init        # index + register MCP server + skills/hooks (Claude Code)
+hc init                 # Claude Code (default)
 hc init --host cursor
+hc init --host codex
+hc init --host opencode
+hc init --host devin
+hc init --host all
 # then restart the agent host
 ```
 

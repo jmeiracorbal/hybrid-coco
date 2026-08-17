@@ -10,10 +10,10 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 
 - SQLite only — no PostgreSQL, no Docker, no always-on server process
 - FTS5 + tree-sitter **before** any embedding / vector layer
-- MCP registered in the **project** host config (Claude Code: `.claude/settings.json`; Cursor: `.cursor/mcp.json`), not desktop-only config
+- MCP registered in the **project** host config (Claude Code: `.claude/settings.json`; Cursor: `.cursor/mcp.json`; Codex: `.codex/config.toml`; OpenCode: `opencode.json`; Devin: `.devin/mcp_config.json`), not desktop-only config
 - Tool names `hc_*` are part of the public interface and must remain stable
 - `hc init` default host remains Claude Code; additional hosts are explicit `--host` values
-- Skills are the same packaged `SKILL.md` set on every host; hooks use only events that host actually supports
+- Skills keep the same names (`hybrid-coco`, `hc-init`, `hc-search`) on every host; `SKILL.md` bodies are host-adapted. Hooks use only events that host actually supports
 
 ## Current baseline (done)
 
@@ -24,7 +24,8 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
 | CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init`, `hook` |
 | MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status` (path/lang/offset/limit on search, symbol & structure) |
-| Hosts | Claude Code (default); Cursor; Codex; OpenCode |
+| Hosts | Claude Code (default); Cursor; Codex; OpenCode; Devin |
+| Skills | Host-adapted `hybrid-coco` / `hc-init` / `hc-search` (same names; bodies match MCP/hooks/native tools) |
 | Hooks | Host-native intercept of Read/Grep (or equivalent) → `hc_*`; write/edit → `hc update`; session start incremental update where the host has the event |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 
@@ -44,7 +45,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | 10 | Cursor host (MCP, skills, hooks) | **done** |
 | 11 | Codex host (MCP, skills, hooks) | **done** |
 | 12 | OpenCode host (MCP, skills, hooks) | **done** |
-| 13 | Devin host (MCP, skills, hooks) | pending |
+| 13 | Devin host (MCP, skills, hooks) | **done** |
 
 ---
 
@@ -109,7 +110,7 @@ Each language: tree-sitter grammar dependency, `~100`-line parser extracting fun
 - Align plugin skill + packaged assets skill
 - Keep Claude Code as primary host; do not weaken `hc_*` naming
 
-**Done:** main skill `hybrid-coco` (policy) + invocable `hc-init` / `hc-search` (lifecycle/query); packaged under `assets/skills`, mirrored in `plugin/skills` and repo `skills/`; `hc init` installs to `~/.claude/skills/`. SessionStart/`hc update` remain incremental — skills must not trigger full reindex storms.
+**Done:** main skill `hybrid-coco` (policy) + invocable `hc-init` / `hc-search` (lifecycle/query); packaged under `assets/skills`, mirrored in `plugin/skills` and repo `skills/`; `hc init` installs Claude skills to `~/.claude/skills/`. Other hosts install host-adapted trees from `assets/hosts/<host>/skills/` (same names, different MCP/hooks/native-tool text). SessionStart/`hc update` remain incremental — skills must not trigger full reindex storms.
 
 **Exit criteria:** skill text is actionable end-to-end; SessionStart + skill do not fight each other (no double full reindex storms).
 
@@ -152,12 +153,12 @@ Only after FTS5 + tree-sitter path is complete. Candidate: optional `sqlite-vec`
 | Surface | Location | Behavior |
 |---------|----------|----------|
 | MCP | `.cursor/mcp.json` (`~/.cursor/mcp.json` with `--global`) | `hc serve` stdio, same `hc_*` names |
-| Skills | `.cursor/skills/` + `~/.cursor/skills/` | same packaged `hybrid-coco`, `hc-init`, `hc-search` |
+| Skills | `.cursor/skills/` + `~/.cursor/skills/` | host-adapted `hybrid-coco`, `hc-init`, `hc-search` (Cursor MCP/hooks/Read-Grep) |
 | Hooks | `.cursor/hooks.json` | `preToolUse` Read\|Grep, `beforeReadFile`, `postToolUse` Write\|StrReplace, `afterFileEdit`, `sessionStart` via `hc hook cursor <event>` |
 
 Cursor cannot clone every Claude Code matcher; intercept uses the events Cursor actually fires. Output is Cursor JSON (`permission: deny` + `agent_message`), not Claude `decision: block`.
 
-**Exit criteria:** init is idempotent; skills bytes match packaged assets; hook tests block indexed Read/Grep and pass unindexed files; `hc reset --all` drops the Cursor MCP entry.
+**Exit criteria:** init is idempotent; installed skills match `assets/hosts/cursor/skills/`; hook tests block indexed Read/Grep and pass unindexed files; `hc reset --all` drops the Cursor MCP entry.
 
 ## Phase 11 — Codex host
 
@@ -168,12 +169,12 @@ Cursor cannot clone every Claude Code matcher; intercept uses the events Cursor 
 | Surface | Location | Behavior |
 |---------|----------|----------|
 | MCP | `.codex/config.toml` `[mcp_servers.hybrid-coco]` | `command = "hc"`, `args = ["serve"]` |
-| Skills | `.agents/skills/` + `~/.agents/skills/` | same packaged `SKILL.md` set |
+| Skills | `.agents/skills/` + `~/.agents/skills/` | host-adapted `SKILL.md` (Bash/`apply_patch`, `.codex/config.toml`) |
 | Hooks | `.codex/hooks.json` | `PreToolUse` `Bash` (simple `cat`/`head`/`rg`/`grep`), `PostToolUse` `apply_patch\|Edit\|Write`, `SessionStart` additionalContext |
 
 Codex cannot intercept a Claude-style `Read` tool. Output uses the Claude-compatible `decision: block` shape Codex accepts.
 
-**Exit criteria:** init is idempotent; TOML merge keeps other tables; skills bytes match packaged assets; `cat` of an indexed file is blocked with `hc_*` output.
+**Exit criteria:** init is idempotent; TOML merge keeps other tables; installed skills match `assets/hosts/codex/skills/`; `cat` of an indexed file is blocked with `hc_*` output.
 
 ## Phase 12 — OpenCode host
 
@@ -184,25 +185,28 @@ Codex cannot intercept a Claude-style `Read` tool. Output uses the Claude-compat
 | Surface | Location | Behavior |
 |---------|----------|----------|
 | MCP | `opencode.json` `mcp.hybrid-coco` | local `["hc", "serve"]` |
-| Skills | `.opencode/skills/` + `~/.config/opencode/skills/` | same packaged `SKILL.md` set |
+| Skills | `.opencode/skills/` + `~/.config/opencode/skills/` | host-adapted `SKILL.md` (`filePath`, JS plugin, `opencode.json`) |
 | Hooks | `.opencode/plugins/hybrid-coco.js` | `tool.execute.before` for `read`/`grep`; `tool.execute.after` for `write`/`edit` |
 
 OpenCode `read` uses `filePath`. The hook does not alias Claude's `file_path`. Blocking throws `decision.reason` from `hc hook opencode pre-tool-use` (`{"block": true, "reason": ...}`).
 
-**Exit criteria:** init writes plugin + MCP + skills; Python hook tests block `read` with `filePath` and ignore `file_path`; skills match packaged assets.
+**Exit criteria:** init writes plugin + MCP + skills; Python hook tests block `read` with `filePath` and ignore `file_path`; installed skills match `assets/hosts/opencode/skills/`.
 
 ## Phase 13 — Devin host
 
 **Why:** Devin CLI is Claude-hook-compatible (`.devin/hooks.v1.json`) with its own MCP file and skill directories.
 
-**Scope:**
+**Done:** `hc init --host devin` registers:
 
-- MCP: `.devin/mcp_config.json`
-- Skills: `.devin/skills/` + `~/.config/devin/skills/`
-- Hooks: `.devin/hooks.v1.json` — `PreToolUse` `read|grep`, `PostToolUse` `write|edit`, `SessionStart`
-- Tool names are lowercase (`read`, `grep`); matchers are regex as Devin documents
+| Surface | Location | Behavior |
+|---------|----------|----------|
+| MCP | `.devin/mcp_config.json` | same `hc serve` stdio entry |
+| Skills | `.devin/skills/` + `~/.config/devin/skills/` | host-adapted `SKILL.md` (lowercase `read`/`grep`, `hooks.v1.json`) |
+| Hooks | `.devin/hooks.v1.json` (file **is** the hooks object) | `PreToolUse` `^(read\|grep)$`, `PostToolUse` `^(write\|edit)$`, `SessionStart` |
 
-**Exit criteria:** init + doctor + reset cover Devin; hook tests use Devin `decision: block` shape; skills match packaged assets.
+Tool names are lowercase. Output is Claude-compatible `decision: block`. Matchers are regex, as Devin documents.
+
+**Exit criteria:** init is idempotent; hooks.v1.json has no wrapper `hooks` key; installed skills match `assets/hosts/devin/skills/`; `read`/`grep` intercept tests pass.
 
 ---
 

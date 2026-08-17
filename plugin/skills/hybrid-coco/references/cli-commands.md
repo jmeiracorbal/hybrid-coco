@@ -15,7 +15,9 @@ hc structure <KIND>      Structural search: function | method | class | import
 hc serve                 Start MCP server (stdio)
 hc doctor [PATH]         Diagnostics (index/schema/languages/MCP/hooks/versions)
 hc reset [PATH]          Delete index DB. Flags: -f, --all (also drop project MCP entry)
-hc init [PATH]           Index + ensure .hybrid-coco/ in .gitignore + register MCP
+hc init [PATH] [--host NAME]...
+                         Index + ensure .hybrid-coco/ in .gitignore + register MCP/hooks/skills
+                         --host: claude (default), cursor, codex, opencode, devin, all
 ```
 
 `.hybrid-coco/config.toml` is created automatically if missing (`hc init`, `hc index`, `hc doctor`). All three keys are required:

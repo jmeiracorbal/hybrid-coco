@@ -5,9 +5,9 @@ description: Self-contained local code intelligence — when and how to use hc_*
 
 # hybrid-coco
 
-Local SQLite index of the codebase. Prefer `hc_*` MCP tools over blind Read/Grep.
+Local SQLite index of the codebase. Prefer `hc_*` MCP tools over Claude Code `Read`/`Grep`.
 
-**Self-contained:** index, CLI, MCP tools, hooks, and skills ship together — no external services.
+**Host:** Claude Code. MCP: `.claude/settings.json`. Hooks: PreToolUse `Read|Grep` (block + `hc_*` output), PostToolUse `Write|Edit` (`hc update`).
 
 **Core principle:** Index once, query always.
 
@@ -54,7 +54,7 @@ Optional filters on `hc_symbol` / `hc_search`: `path` (gitignore-style), `lang` 
 
 ## Lifecycle (do not fight hooks)
 
-SessionStart and PostToolUse already run incremental `hc update` when an index exists.
+Claude Code SessionStart (plugin) and PostToolUse `Write|Edit` already run incremental `hc update` when an index exists.
 
 - **No** `.hybrid-coco/index.db` → use `/hc-init` (or `hc init .`). Do not invent a full reindex loop.
 - Index exists but results look stale → `hc update .` only. Never run `hc index` just because SessionStart already refreshed.
@@ -66,7 +66,7 @@ After `hc_file_context` or `hc_symbol`, call `hc_snippet(path, line_start, line_
 
 ## Troubleshooting (short)
 
-- **`hc_*` unavailable** → `/hc-init`, then restart the agent host if MCP was just registered.
+- **`hc_*` unavailable** → `/hc-init` (`hc init .`), then restart Claude Code if MCP was just registered.
 - **Symbol missing** → language may be unsupported; fall back to Grep. Or run `hc doctor` / `/hc-init` if the index is empty.
 - **Snippet out of range** → re-check lines from `hc_symbol` / `hc_file_context`; paths are relative to project root.
 - **Output is incomplete or unclear** → narrow the query with `path`, `lang`, or `limit`, then retry.

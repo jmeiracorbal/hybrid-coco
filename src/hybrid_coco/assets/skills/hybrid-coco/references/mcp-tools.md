@@ -2,7 +2,7 @@
 
 ## Protocol
 
-MCP over stdio (stdin/stdout JSON-RPC 2.0). Compatible with Claude Code, Cursor, and other MCP hosts without additional protocol configuration.
+MCP over stdio (stdin/stdout JSON-RPC 2.0). Compatible with Claude Code, Cursor, Codex, OpenCode, Devin, and other MCP hosts without additional protocol configuration.
 Library: `mcp` from PyPI (official Anthropic Python SDK).
 
 ## Launch
@@ -15,7 +15,7 @@ If no index is found, exits immediately with: `No index found. Run: hc index .`
 
 ## Configuration
 
-Written by `hc init` (Claude Code default) or `hc init --host cursor`:
+Written by `hc init` (Claude Code default) or `hc init --host <name>`:
 
 **Claude Code** — `.claude/settings.json`:
 
@@ -32,6 +32,29 @@ Written by `hc init` (Claude Code default) or `hc init --host cursor`:
 ```
 
 **Cursor** — `.cursor/mcp.json` (same `command` / `args` / `type`).
+
+**Codex** — `.codex/config.toml`:
+
+```toml
+[mcp_servers.hybrid-coco]
+command = "hc"
+args = ["serve"]
+```
+
+**OpenCode** — `opencode.json`:
+
+```json
+{
+  "mcp": {
+    "hybrid-coco": {
+      "type": "local",
+      "command": ["hc", "serve"]
+    }
+  }
+}
+```
+
+**Devin** — `.devin/mcp_config.json` (same `command` / `args` / `type` as Claude Code / Cursor).
 
 The server is launched by the host from the project root. Index path resolution depends on this cwd — correct for per-project isolation.
 
