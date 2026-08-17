@@ -9,6 +9,7 @@ from .common import (
     MCP_TOOLS,
     copy_hook_scripts,
     copy_skills,
+    skills_src,
     load_json_object,
     mcp_registered_json,
     merge_mcp_json,
@@ -111,7 +112,7 @@ class ClaudeHost:
         lines.append("PreToolUse: Read|Grep → hc_* suggestion")
         lines.append("PostToolUse: Write|Edit → hc update")
 
-        skills = copy_skills(claude_dir / "skills")
+        skills = copy_skills(claude_dir / "skills", skills_src(self.name))
         lines.append(f"skills installed in ~/.claude/skills/: {', '.join(skills)}")
 
         _patch_claude_hooks(claude_dir / "settings.json")

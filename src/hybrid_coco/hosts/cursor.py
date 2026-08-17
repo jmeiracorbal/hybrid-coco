@@ -12,6 +12,7 @@ from .common import (
     mcp_registered_json,
     merge_mcp_json,
     remove_mcp_json,
+    skills_src,
     write_json,
 )
 from .types import HostResult
@@ -97,7 +98,7 @@ class CursorHost:
             skill_targets.append(root / ".cursor" / "skills")
         skills: list[str] = []
         for dst in skill_targets:
-            skills = copy_skills(dst)
+            skills = copy_skills(dst, skills_src(self.name))
             rel = dst
             if not global_config and dst == root / ".cursor" / "skills":
                 rel = Path(".cursor/skills")

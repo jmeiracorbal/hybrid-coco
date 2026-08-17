@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .common import ASSETS_DIR, MCP_TOOLS, copy_skills, load_json_object, write_json
+from .common import ASSETS_DIR, MCP_TOOLS, copy_skills, load_json_object, skills_src, write_json
 from .types import HostResult
 
 _MCP_ENTRY = {
@@ -87,7 +87,7 @@ class OpenCodeHost:
             skill_targets.append(root / ".opencode" / "skills")
         skills: list[str] = []
         for dst in skill_targets:
-            skills = copy_skills(dst)
+            skills = copy_skills(dst, skills_src(self.name))
             rel: Path | str = dst
             if not global_config and dst == root / ".opencode" / "skills":
                 rel = Path(".opencode/skills")

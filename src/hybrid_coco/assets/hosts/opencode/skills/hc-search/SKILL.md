@@ -1,6 +1,6 @@
 ---
 name: hc-search
-description: Query the hybrid-coco index — choose hc_symbol, hc_search, or hc_file_context; apply path/lang filters. Does not reindex.
+description: Query the hybrid-coco index from OpenCode — choose hc_symbol, hc_search, or hc_file_context. Does not reindex.
 user-invokable: true
 args:
   - name: query
@@ -8,13 +8,13 @@ args:
     required: true
 ---
 
-# hc-search
+# hc-search (OpenCode)
 
 Search or navigate the hybrid-coco index for: $ARGUMENTS
 
 This skill **queries** only. It does not run `hc init` / `hc index` unless tools are unavailable (then hand off to `/hc-init`).
 
-Do not open files with Claude Code `Read` or `Grep` to answer this query. Use `hc_*` first.
+Do not open files with OpenCode `read` or `grep` to answer this query. `read` takes **`filePath`** (camelCase), not `file_path`. Use `hc_*` first.
 
 ## Choose the tool
 
@@ -40,13 +40,13 @@ Omit a filter for no restriction.
 ## If MCP tools are missing
 
 1. Call `hc_status` if present; otherwise check for `.hybrid-coco/index.db`
-2. Hand off to `/hc-init` (`hc init .`) — do not full-reindex from this skill as a first step
+2. Hand off to `/hc-init` (`hc init . --host opencode`) — do not full-reindex from this skill as a first step
 
 ## Present results
 
 Group by file when useful. For each hit show: kind, path, line range, signature, docstring if any.
 
-After a hit, if the body is needed: `hc_snippet(path, line_start, line_end)` from the symbol range — not the whole file.
+After a hit, if the body is needed: `hc_snippet(path, line_start, line_end)` from the symbol range — not OpenCode `read` of the whole file.
 
 ## CLI fallback (same project root)
 

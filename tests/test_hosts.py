@@ -10,7 +10,7 @@ from click.testing import CliRunner
 
 from hybrid_coco.cli import main
 from hybrid_coco.hosts import HOST_NAMES, resolve_host_names
-from hybrid_coco.hosts.common import SKILL_NAMES
+from hybrid_coco.hosts.common import SKILL_NAMES, skills_src
 from hybrid_coco.hosts.claude import ClaudeHost
 from hybrid_coco.hosts.codex import CodexHost
 from hybrid_coco.hosts.cursor import CursorHost
@@ -40,6 +40,19 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return home
 
 
+def _assert_skills_match_host(dest: Path, host: str) -> None:
+    src = skills_src(host)
+    for name in SKILL_NAMES:
+        got = dest / name / "SKILL.md"
+        expected = src / name / "SKILL.md"
+        assert got.is_file()
+        assert got.read_bytes() == expected.read_bytes()
+        refs = src / name / "references"
+        if refs.is_dir():
+            for ref in refs.iterdir():
+                assert (dest / name / "references" / ref.name).read_bytes() == ref.read_bytes()
+
+
 def test_resolve_host_names_rejects_unknown():
     with pytest.raises(ValueError, match="unknown host"):
         resolve_host_names(("nope",))
@@ -60,12 +73,8 @@ def test_claude_install_writes_skills_and_mcp(tmp_path: Path):
     assert set(result.skills) == set(SKILL_NAMES)
     settings = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
     assert settings["mcpServers"]["hybrid-coco"]["command"] == "hc"
-    for name in SKILL_NAMES:
-        skill_md = home / ".claude" / "skills" / name / "SKILL.md"
-        assert skill_md.is_file()
-        text = skill_md.read_text(encoding="utf-8")
-        assert text.startswith("---")
-        assert f"name: {name}" in text
+    for dest in (home / ".claude" / "skills",):
+        _assert_skills_match_host(dest, "claude")
     assert (home / ".claude" / "hooks" / "hc-pre-tool-use.sh").is_file()
     global_settings = json.loads((home / ".claude" / "settings.json").read_text(encoding="utf-8"))
     matchers = [e["matcher"] for e in global_settings["hooks"]["PreToolUse"]]
@@ -98,15 +107,8 @@ def test_cursor_install_matches_packaged_skills(tmp_path: Path):
         for e in hooks["hooks"]["afterFileEdit"]
     )
 
-    packaged = Path(__file__).resolve().parents[1] / "src" / "hybrid_coco" / "assets" / "skills"
     for dest in (home / ".cursor" / "skills", root / ".cursor" / "skills"):
-        for name in SKILL_NAMES:
-            got = (dest / name / "SKILL.md").read_text(encoding="utf-8")
-            expected = (packaged / name / "SKILL.md").read_text(encoding="utf-8")
-            assert got == expected
-            assert (dest / name / "SKILL.md").read_bytes() == (
-                packaged / name / "SKILL.md"
-            ).read_bytes()
+        _assert_skills_match_host(dest, "cursor")
 
     # idempotent
     CursorHost().install(root, global_config=False, home=home)
@@ -291,12 +293,8 @@ def test_codex_install_writes_toml_hooks_skills(tmp_path: Path):
         any(h.get("command") == "hc hook codex pre-tool-use" for h in e.get("hooks", []))
         for e in pre
     )
-    packaged = Path(__file__).resolve().parents[1] / "src" / "hybrid_coco" / "assets" / "skills"
     for dest in (home / ".agents" / "skills", root / ".agents" / "skills"):
-        for name in SKILL_NAMES:
-            assert (dest / name / "SKILL.md").read_bytes() == (
-                packaged / name / "SKILL.md"
-            ).read_bytes()
+        _assert_skills_match_host(dest, "codex")
     CodexHost().install(root, global_config=False, home=home)
     hooks2 = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
     commands = [
@@ -362,15 +360,11 @@ def test_opencode_install_plugin_mcp_skills(tmp_path: Path):
     plugin = (root / ".opencode" / "plugins" / "hybrid-coco.js").read_text(encoding="utf-8")
     assert "tool.execute.before" in plugin
     assert '"hook", "opencode"' in plugin
-    packaged = Path(__file__).resolve().parents[1] / "src" / "hybrid_coco" / "assets" / "skills"
     for dest in (
         home / ".config" / "opencode" / "skills",
         root / ".opencode" / "skills",
     ):
-        for name in SKILL_NAMES:
-            assert (dest / name / "SKILL.md").read_bytes() == (
-                packaged / name / "SKILL.md"
-            ).read_bytes()
+        _assert_skills_match_host(dest, "opencode")
 
 
 def test_init_host_opencode(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -429,12 +423,8 @@ def test_devin_install_mcp_hooks_skills(tmp_path: Path):
         any(h.get("command") == "hc hook devin pre-tool-use" for h in e.get("hooks", []))
         for e in pre
     )
-    packaged = Path(__file__).resolve().parents[1] / "src" / "hybrid_coco" / "assets" / "skills"
     for dest in (home / ".config" / "devin" / "skills", root / ".devin" / "skills"):
-        for name in SKILL_NAMES:
-            assert (dest / name / "SKILL.md").read_bytes() == (
-                packaged / name / "SKILL.md"
-            ).read_bytes()
+        _assert_skills_match_host(dest, "devin")
     DevinHost().install(root, global_config=False, home=home)
     hooks2 = json.loads((root / ".devin" / "hooks.v1.json").read_text(encoding="utf-8"))
     commands = [
@@ -484,3 +474,44 @@ def test_devin_hook_blocks_grep(project: Path, monkeypatch: pytest.MonkeyPatch):
     data = json.loads(result.output)
     assert data["decision"] == "block"
     assert "hc_search" in data["reason"]
+
+
+def test_skills_src_rejects_unknown_host():
+    with pytest.raises(ValueError, match="unknown host"):
+        skills_src("nope")
+
+
+def test_host_skills_are_adapted_not_copied():
+    claude = skills_src("claude") / "hybrid-coco" / "SKILL.md"
+    claude_text = claude.read_text(encoding="utf-8")
+    assert ".claude/settings.json" in claude_text
+    assert "Claude Code" in claude_text
+    for name in SKILL_NAMES:
+        text = (skills_src("claude") / name / "SKILL.md").read_text(encoding="utf-8")
+        assert "hc_inspect" not in text
+        assert "hc_map" not in text
+
+    cursor = (skills_src("cursor") / "hybrid-coco" / "SKILL.md").read_text(encoding="utf-8")
+    assert cursor != claude_text
+    assert ".cursor/mcp.json" in cursor
+    assert "beforeReadFile" in cursor
+    assert "permission" in cursor or "deny" in cursor
+
+    codex = (skills_src("codex") / "hybrid-coco" / "SKILL.md").read_text(encoding="utf-8")
+    assert ".codex/config.toml" in codex
+    assert "apply_patch" in codex
+    assert "Bash" in codex
+    assert "hc_file_context" in codex
+    assert "hc_inspect" not in codex
+
+    opencode = (skills_src("opencode") / "hybrid-coco" / "SKILL.md").read_text(encoding="utf-8")
+    assert "opencode.json" in opencode
+    assert "filePath" in opencode
+    assert "file_path" in opencode
+    assert "plugin" in opencode.lower() or "hybrid-coco.js" in opencode
+
+    devin = (skills_src("devin") / "hybrid-coco" / "SKILL.md").read_text(encoding="utf-8")
+    assert ".devin/mcp_config.json" in devin
+    assert "hooks.v1.json" in devin
+    assert "file_path" in devin
+    assert "lowercase" in devin.lower()
