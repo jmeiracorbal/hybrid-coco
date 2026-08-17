@@ -17,6 +17,7 @@ from .filters import (
     validate_path_filter,
 )
 from .languages.registry import get_language_spec, get_structure_query, load_tree_sitter
+from .parsers.ts_utils import node_text
 from .store import Store
 
 STRUCTURE_KINDS: tuple[str, ...] = ("function", "method", "class", "import")
@@ -49,12 +50,8 @@ def validate_structure_kind(kind: str) -> str:
     return normalized
 
 
-def _node_text(node, source: bytes) -> str:
-    return source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
-
-
 def _preview(node, source: bytes) -> str:
-    text = _node_text(node, source)
+    text = node_text(node, source)
     first = text.splitlines()[0] if text else ""
     return first[:120]
 
@@ -114,7 +111,7 @@ def _match_file(
         node_nodes = captures.get("node")
         if name_nodes:
             node = name_nodes[0]
-            name = _node_text(node, source)
+            name = node_text(node, source)
         elif node_nodes:
             node = node_nodes[0]
             name = None
