@@ -5,23 +5,13 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from tree_sitter import Language, Parser as TSParser, Node
+from tree_sitter import Parser as TSParser, Node
+
+from hybrid_coco.languages.registry import load_tree_sitter
 
 from .base import Parser, Symbol
 
 log = logging.getLogger(__name__)
-
-
-def _get_js_language(lang: str):
-    if lang == "typescript":
-        import tree_sitter_typescript as tsts
-        return Language(tsts.language_typescript())
-    elif lang == "tsx":
-        import tree_sitter_typescript as tsts
-        return Language(tsts.language_tsx())
-    else:
-        import tree_sitter_javascript as tsjs
-        return Language(tsjs.language())
 
 
 def _node_text(node: Node, source: bytes) -> str:
@@ -38,7 +28,7 @@ def _get_name_child(node: Node, source: bytes) -> Optional[str]:
 class JSParser(Parser):
     def __init__(self, lang: str = "javascript"):
         self._lang_name = lang
-        self._language = _get_js_language(lang)
+        self._language = load_tree_sitter(lang)
         self._parser = TSParser(self._language)
 
     def parse(self, source: bytes, filepath: str) -> list[Symbol]:
