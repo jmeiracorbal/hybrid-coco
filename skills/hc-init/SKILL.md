@@ -32,9 +32,11 @@ If **missing**:
 
 ```bash
 hc init .
+# or: hc init . --host cursor
+# or: hc init . --host all
 ```
 
-Then report: files/symbols indexed, index path, that Claude Code may need a restart to load MCP.
+Then report: files/symbols indexed, index path, that the agent host may need a restart to load MCP.
 
 If **present**: skip `hc init` unless MCP/hooks are clearly unregistered (see step 4).
 
@@ -54,9 +56,10 @@ If `hc_status` / `hc_*` tools are unavailable after an index exists:
 
 ```bash
 hc init .
+# target another host: hc init . --host cursor
 ```
 
-`hc init` is idempotent: re-registers MCP in `.claude/settings.json`, refreshes global awareness/hooks/skills under `~/.claude/`. Restart Claude Code if MCP was newly registered.
+`hc init` is idempotent: re-registers MCP, skills, and hooks for the selected host (default: Claude Code). Restart the agent host if MCP was newly registered.
 
 ### 5. Report
 

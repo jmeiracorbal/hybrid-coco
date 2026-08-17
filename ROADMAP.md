@@ -4,14 +4,16 @@ Status: **active** · Last updated: 2026-08-17 · Package: `0.1.16`
 
 ## Goal
 
-Local, deterministic code intelligence for AI agents: index once with tree-sitter into SQLite + FTS5, query via CLI and `hc_*` MCP tools, and intercept wasteful `Read`/`Grep` with Claude Code hooks. Two commands must remain enough: `pip install hybrid-coco && hc init`.
+Local, deterministic code intelligence for AI agents: index once with tree-sitter into SQLite + FTS5, query via CLI and `hc_*` MCP tools, and intercept wasteful `Read`/`Grep` with host-native hooks. Two commands must remain enough: `pip install hybrid-coco && hc init`. Extra hosts opt in with `hc init --host <name>`.
 
 ## Non-negotiable constraints
 
 - SQLite only — no PostgreSQL, no Docker, no always-on server process
 - FTS5 + tree-sitter **before** any embedding / vector layer
-- MCP registered in `.claude/settings.json` (Claude Code), not desktop config
+- MCP registered in the **project** host config (Claude Code: `.claude/settings.json`; Cursor: `.cursor/mcp.json`), not desktop-only config
 - Tool names `hc_*` are part of the public interface and must remain stable
+- `hc init` default host remains Claude Code; additional hosts are explicit `--host` values
+- Skills are the same packaged `SKILL.md` set on every host; hooks use only events that host actually supports
 
 ## Current baseline (done)
 
@@ -20,9 +22,10 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Indexer | Incremental SHA-256 walk, gitignore-aware, `.hybrid-coco/config.toml` + CLI `--exclude` |
 | Store | SQLite files + symbols + FTS5 trigram |
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
-| CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init` |
+| CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init`, `hook` |
 | MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status` (path/lang/offset/limit on search, symbol & structure) |
-| Hooks | Blocking PreToolUse (Read/Grep → hc), PostToolUse, SessionStart awareness + incremental update |
+| Hosts | Claude Code (default `hc init`); Cursor (`hc init --host cursor`) |
+| Hooks | Host-native intercept of Read/Grep (or equivalent) → `hc_*`; write/edit → `hc update`; session start incremental update where the host has the event |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 
 ## Phase overview
@@ -38,6 +41,10 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | 07 | Structural search (tree-sitter patterns) | **done** |
 | 08 | Settings file (include / exclude) | **done** |
 | 09 | Embeddings optional layer (`sqlite-vec`) | deferred |
+| 10 | Cursor host (MCP, skills, hooks) | **done** |
+| 11 | Codex host (MCP, skills, hooks) | pending |
+| 12 | OpenCode host (MCP, skills, hooks) | pending |
+| 13 | Devin host (MCP, skills, hooks) | pending |
 
 ---
 
@@ -135,6 +142,61 @@ Project-level include/exclude / language overrides in `.hybrid-coco/config.toml`
 ## Phase 09 — Embeddings optional layer (deferred)
 
 Only after FTS5 + tree-sitter path is complete. Candidate: optional `sqlite-vec` extra. Must not become a required dependency or break deterministic CLI defaults.
+
+## Phase 10 — Cursor host
+
+**Why:** Cursor is an MCP client with Agent Skills and a smaller hook surface than Claude Code. Cloud agents only load **project** `.cursor/` hooks.
+
+**Done:** `hc init --host cursor` (and `--host all`) registers:
+
+| Surface | Location | Behavior |
+|---------|----------|----------|
+| MCP | `.cursor/mcp.json` (`~/.cursor/mcp.json` with `--global`) | `hc serve` stdio, same `hc_*` names |
+| Skills | `.cursor/skills/` + `~/.cursor/skills/` | same packaged `hybrid-coco`, `hc-init`, `hc-search` |
+| Hooks | `.cursor/hooks.json` | `preToolUse` Read\|Grep, `beforeReadFile`, `postToolUse` Write\|StrReplace, `afterFileEdit`, `sessionStart` via `hc hook cursor <event>` |
+
+Cursor cannot clone every Claude Code matcher; intercept uses the events Cursor actually fires. Output is Cursor JSON (`permission: deny` + `agent_message`), not Claude `decision: block`.
+
+**Exit criteria:** init is idempotent; skills bytes match packaged assets; hook tests block indexed Read/Grep and pass unindexed files; `hc reset --all` drops the Cursor MCP entry.
+
+## Phase 11 — Codex host
+
+**Why:** Codex CLI/IDE shares the Agent Skills standard and MCP via `.codex/config.toml`, but has no Read/Grep tools — file reads go through `Bash` / `apply_patch`.
+
+**Scope:**
+
+- MCP: `[mcp_servers.hybrid-coco]` in `.codex/config.toml`
+- Skills: `.agents/skills/` + `~/.agents/skills/` (same `SKILL.md` set)
+- Hooks: `.codex/hooks.json` — `PreToolUse` on `Bash` (simple `cat`/`head`/`rg`/`grep` of indexed files), `PostToolUse` on `apply_patch`/`Edit`/`Write` → `hc update`, `SessionStart` additionalContext
+- Do not invent Claude-only events Codex does not fire
+
+**Exit criteria:** init + doctor + reset cover Codex; hook tests intercept a `cat` of an indexed file and refresh on `apply_patch`; skills match packaged assets.
+
+## Phase 12 — OpenCode host
+
+**Why:** OpenCode loads MCP from `opencode.json`, skills from `.opencode/skills/`, and hooks as JS plugins (`tool.execute.before` / `tool.execute.after`), not Claude `settings.json`.
+
+**Scope:**
+
+- MCP: `opencode.json` `mcp.hybrid-coco` local command `["hc", "serve"]`
+- Skills: `.opencode/skills/` + `~/.config/opencode/skills/`
+- Plugin: `.opencode/plugins/hybrid-coco.js` calling `hc hook opencode …` for `read`/`grep` before and `write`/`edit` after
+- OpenCode tool args use `filePath` — no silent aliasing to Claude `file_path`
+
+**Exit criteria:** init writes plugin + MCP + skills; Python hook tests block `read` with `filePath`; skills match packaged assets.
+
+## Phase 13 — Devin host
+
+**Why:** Devin CLI is Claude-hook-compatible (`.devin/hooks.v1.json`) with its own MCP file and skill directories.
+
+**Scope:**
+
+- MCP: `.devin/mcp_config.json`
+- Skills: `.devin/skills/` + `~/.config/devin/skills/`
+- Hooks: `.devin/hooks.v1.json` — `PreToolUse` `read|grep`, `PostToolUse` `write|edit`, `SessionStart`
+- Tool names are lowercase (`read`, `grep`); matchers are regex as Devin documents
+
+**Exit criteria:** init + doctor + reset cover Devin; hook tests use Devin `decision: block` shape; skills match packaged assets.
 
 ---
 
