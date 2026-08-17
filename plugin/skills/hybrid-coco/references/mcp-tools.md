@@ -131,6 +131,25 @@ Structural search by tree-sitter shape over indexed files. `kind` must be one of
 
 ---
 
+### `hc_semantic`
+
+**Input:** `query: str`, `path?: str`, `lang?: list[str]`, `offset?: int = 0`, `limit?: int = 20`
+
+Nearest-neighbour search over embeddings produced by `hc embed`. Uses the model stored in the index (no model parameter). Same optional filters and pagination as `hc_search`.
+
+Fails with `Error: sqlite-vec extra is not installed…` or `Error: no embeddings in the index…` — then use `hc_search` instead. Do not run `hc embed` unless the user asked.
+
+**Response example:**
+
+```
+# hc_semantic('token savings')
+[src/tracking.rs:1036] struct TimedExecution  dist=0.4120
+  sig: struct TimedExecution
+  doc: Records token savings to SQLite
+```
+
+---
+
 ### `hc_status`
 
 **Input:** (none)

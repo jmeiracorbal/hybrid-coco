@@ -20,8 +20,8 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Indexer | Incremental SHA-256 walk, gitignore-aware, `.hybrid-coco/config.toml` + CLI `--exclude` |
 | Store | SQLite files + symbols + FTS5 trigram |
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
-| CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init` |
-| MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status` (path/lang/offset/limit on search, symbol & structure) |
+| CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `embed`, `semantic`, `serve`, `doctor`, `reset`, `init` |
+| MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_semantic`, `hc_status` (path/lang/offset/limit on search, symbol, structure & semantic) |
 | Hooks | Blocking PreToolUse (Read/Grep → hc), PostToolUse, SessionStart awareness + incremental update |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 
@@ -37,7 +37,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | 06 | Symbol body / targeted snippet | **done** |
 | 07 | Structural search (tree-sitter patterns) | **done** |
 | 08 | Settings file (include / exclude) | **done** |
-| 09 | Embeddings optional layer (`sqlite-vec`) | deferred |
+| 09 | Embeddings optional layer (`sqlite-vec`) | **done** |
 
 ---
 
@@ -132,9 +132,11 @@ Project-level include/exclude / language overrides in `.hybrid-coco/config.toml`
 
 **Done:** `.hybrid-coco/config.toml` (`include`, `exclude`, `languages`) is written if missing (index/init/doctor self-heal); load reads the file after create; invalid existing files fail and are not overwritten; CLI `--exclude` still applies; `hc reset` keeps the config file.
 
-## Phase 09 — Embeddings optional layer (deferred)
+## Phase 09 — Embeddings optional layer (`sqlite-vec`)
 
-Only after FTS5 + tree-sitter path is complete. Candidate: optional `sqlite-vec` extra. Must not become a required dependency or break deterministic CLI defaults.
+Only after FTS5 + tree-sitter path is complete. Optional extra — must not become a required dependency or break deterministic CLI defaults.
+
+**Done:** extra `hybrid-coco[vec]` (`sqlite-vec` + `fastembed`); `hc embed --model NAME` (model required, stored in SQLite); `hc semantic` / `hc_semantic` reuse that model; same path/lang/offset/limit filters; doctor hints if the extra is missing (not an error). Default `pip install hybrid-coco && hc init` stays lexical. Tests stub the embedder (no model download). After reindex, run `hc embed` again — vectors are not kept in sync automatically.
 
 ---
 

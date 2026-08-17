@@ -17,9 +17,11 @@ from .config import get_index_path
 from .filters import DEFAULT_QUERY_LIMIT, validate_languages, validate_paging, validate_path_filter
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
 from .settings import SettingsError, ensure_settings, load_or_create_settings, settings_path
+from .embedder import embed_texts
 from .snippet import SnippetError, read_snippet
 from .store import Store
 from .structure import StructureError, search_structure, validate_structure_kind
+from .vectors import VectorError, embed_index, semantic_search
 
 
 def _parse_exclude(exclude: tuple[str, ...]) -> tuple[str, ...]:
@@ -359,6 +361,78 @@ def cmd_structure(kind: str, path_filter: str | None, lang: tuple, offset: int, 
             click.echo(f"  {match.preview}")
 
 
+# ── hc embed ─────────────────────────────────────────────────────────────────
+
+@main.command("embed")
+@click.argument("path", default=".", type=click.Path(exists=True, file_okay=False))
+@click.option(
+    "--model",
+    required=True,
+    help="fastembed model name; stored in the index for hc semantic",
+)
+def cmd_embed(path: str, model: str):
+    """Build sqlite-vec embeddings for indexed symbols (optional extra)."""
+    if not model.strip():
+        click.echo("Error: --model must be non-empty", err=True)
+        sys.exit(1)
+    root = Path(path).resolve()
+    store = _require_store(root)
+    try:
+        result = embed_index(store=store, model=model, embed_texts=embed_texts)
+    except VectorError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+    finally:
+        store.close()
+    click.echo(
+        f"Embedded {result.vectors} symbols  model={result.model}  "
+        f"dim={result.dimensions}"
+    )
+
+
+# ── hc semantic ──────────────────────────────────────────────────────────────
+
+@main.command("semantic")
+@click.argument("text")
+@click.option("--path", "path_filter", default=None, help="gitignore-style path filter")
+@click.option("--lang", multiple=True, help="Language filter (repeatable), e.g. python")
+@click.option("--offset", default=0, show_default=True, type=int)
+@click.option("--limit", default=DEFAULT_QUERY_LIMIT, show_default=True, type=int)
+def cmd_semantic(text: str, path_filter: str | None, lang: tuple, offset: int, limit: int):
+    """Nearest-neighbour search over embeddings from hc embed."""
+    path_f, langs, offset, limit = _parse_query_filters(
+        path=path_filter, lang=lang, offset=offset, limit=limit
+    )
+    root = Path.cwd()
+    store = _require_store(root)
+    try:
+        results = semantic_search(
+            store=store,
+            query=text,
+            embed_texts=embed_texts,
+            path=path_f,
+            languages=langs,
+            offset=offset,
+            limit=limit,
+        )
+    except VectorError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+    finally:
+        store.close()
+
+    if not results:
+        click.echo("No results.")
+        return
+
+    for r in results:
+        doc_part = f" — {r['docstring'][:80]}" if r.get("docstring") else ""
+        click.echo(
+            f"[{r['path']}:{r['line_start']}]  {r['kind']} {r['name']}  "
+            f"dist={r['distance']:.4f}{doc_part}"
+        )
+
+
 # ── hc serve ─────────────────────────────────────────────────────────────────
 
 @main.command("serve")
@@ -373,7 +447,7 @@ def cmd_serve():
 @main.command("doctor")
 @click.argument("path", default=".", type=click.Path(exists=True, file_okay=False))
 def cmd_doctor(path: str):
-    """Run diagnostics: index, schema, languages, MCP/hooks, version alignment."""
+    """Run diagnostics: index, schema, languages, embeddings extra, MCP/hooks, versions."""
     from .doctor import format_report, run_doctor
 
     root = Path(path).resolve()
@@ -431,6 +505,7 @@ MCP_TOOLS = [
     "hc_file_context",
     "hc_snippet",
     "hc_structure",
+    "hc_semantic",
     "hc_status",
 ]
 

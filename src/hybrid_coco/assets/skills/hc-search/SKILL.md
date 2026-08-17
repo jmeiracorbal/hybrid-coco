@@ -1,6 +1,6 @@
 ---
 name: hc-search
-description: Query the hybrid-coco index — choose hc_symbol, hc_search, or hc_file_context; apply path/lang filters. Does not reindex.
+description: Query the hybrid-coco index — choose hc_symbol, hc_search, hc_semantic, or hc_file_context; apply path/lang filters. Does not reindex.
 user-invokable: true
 args:
   - name: query
@@ -20,6 +20,7 @@ This skill **queries** only. It does not run `hc init` / `hc index` unless tools
 |---|---|
 | Exact or prefix symbol name | `hc_symbol(name=...)` |
 | Concept / keyword / docstring text | `hc_search(query=...)` |
+| Meaning, when embeddings already exist | `hc_semantic(query=...)` |
 | Code shape (function/method/class/import) | `hc_structure(kind=...)` |
 | What is in one file | `hc_file_context(path=...)` |
 | Read a known line range | `hc_snippet(path=..., line_start=..., line_end=...)` |
@@ -27,13 +28,15 @@ This skill **queries** only. It does not run `hc init` / `hc index` unless tools
 
 ## Filters and pagination
 
-On `hc_symbol` and `hc_search` (optional, AND together):
+On `hc_symbol`, `hc_search`, and `hc_semantic` (optional, AND together):
 
 - `path` — gitignore-style pattern over indexed paths
 - `lang` — e.g. `["python"]`, `["rust"]`
 - `offset` / `limit` — page or shrink results (`limit` default 20 for search)
 
 Omit a filter for no restriction.
+
+Do not run `hc embed` from this skill. `hc_semantic` is only for indexes that already have vectors.
 
 ## If MCP tools are missing
 
@@ -51,6 +54,7 @@ After a hit, if the body is needed: `hc_snippet(path, line_start, line_end)` fro
 ```bash
 hc symbol <NAME> [--path PAT] [--lang LANG]...
 hc query <TEXT>  [--path PAT] [--lang LANG]...
+hc semantic <TEXT> [--path PAT] [--lang LANG]...
 hc file-context <PATH>
 hc snippet <PATH> <START> <END>
 hc status

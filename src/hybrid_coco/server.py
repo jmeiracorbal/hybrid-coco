@@ -16,9 +16,11 @@ from .filters import (
     validate_paging,
     validate_path_filter,
 )
+from .embedder import embed_texts
 from .snippet import SnippetError, read_snippet
 from .store import Store
 from .structure import StructureError, search_structure
+from .vectors import VectorError, semantic_search
 
 
 def _require_store(root: Path) -> Store:
@@ -139,6 +141,23 @@ def _fmt_structure(kind: str, results: list) -> str:
         )
         if match.preview:
             lines.append(f"  {match.preview}")
+    return "\n".join(lines)
+
+
+def _fmt_semantic(query: str, results: list[dict]) -> str:
+    if not results:
+        return f"# hc_semantic({query!r})\nNo results."
+    lines = [f"# hc_semantic({query!r})"]
+    for r in results:
+        lines.append(
+            f"[{r['path']}:{r['line_start']}] {r['kind']} {r['name']}  "
+            f"dist={r['distance']:.4f}"
+        )
+        if r.get("signature"):
+            lines.append(f"  sig: {r['signature']}")
+        if r.get("docstring"):
+            snippet = r["docstring"][:120].replace("\n", " ")
+            lines.append(f"  doc: {snippet}")
     return "\n".join(lines)
 
 
@@ -270,6 +289,38 @@ def build_server(root: Path) -> tuple[MCPServer, Store]:
             )
             return _fmt_structure(kind, results)
         except (StructureError, ValueError, TypeError) as exc:
+            return f"Error: {exc}"
+
+    @server.tool(
+        name="hc_semantic",
+        description=(
+            "Nearest-neighbour search over embeddings produced by hc embed. "
+            "Uses the model stored in the index. "
+            "Optional path/lang filters AND together; use offset/limit to page."
+        ),
+    )
+    async def hc_semantic(
+        query: str,
+        path: Optional[str] = None,
+        lang: Optional[list[str]] = None,
+        offset: int = 0,
+        limit: int = DEFAULT_QUERY_LIMIT,
+    ) -> str:
+        try:
+            path_f, langs, offset_v, limit_v = _parse_filters(
+                path=path, lang=lang, offset=offset, limit=limit
+            )
+            results = semantic_search(
+                store=store,
+                query=query,
+                embed_texts=embed_texts,
+                path=path_f,
+                languages=langs,
+                offset=offset_v,
+                limit=limit_v,
+            )
+            return _fmt_semantic(query, results)
+        except (VectorError, ValueError, TypeError) as exc:
             return f"Error: {exc}"
 
     @server.tool(

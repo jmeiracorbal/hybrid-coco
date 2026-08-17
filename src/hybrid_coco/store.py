@@ -45,6 +45,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
     name, kind, signature, docstring,
     tokenize='trigram'
 );
+
+CREATE TABLE IF NOT EXISTS vec_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -54,6 +59,10 @@ class Store:
         self._conn = sqlite3.connect(str(db_path))
         self._conn.row_factory = sqlite3.Row
         self._apply_schema()
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        return self._conn
 
     def _apply_schema(self):
         self._conn.executescript(SCHEMA)
@@ -264,3 +273,60 @@ class Store:
 
     def all_files(self) -> list[sqlite3.Row]:
         return self._conn.execute("SELECT * FROM files ORDER BY path").fetchall()
+
+    # ── Vector metadata (sqlite-vec table is owned by vectors.py) ─────────────
+
+    def vec_meta(self) -> dict[str, str]:
+        rows = self._conn.execute("SELECT key, value FROM vec_meta").fetchall()
+        return {row["key"]: row["value"] for row in rows}
+
+    def set_vec_meta(self, key: str, value: str) -> None:
+        self._conn.execute(
+            """INSERT INTO vec_meta (key, value) VALUES (?, ?)
+               ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+            (key, value),
+        )
+
+    def list_symbols_for_embed(self) -> list[dict]:
+        rows = self._conn.execute(
+            """SELECT s.id, s.name, s.kind, s.signature, s.docstring
+               FROM symbols s
+               ORDER BY s.id"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def symbols_by_ids(self, ids: Sequence[int]) -> dict[int, dict]:
+        if not ids:
+            return {}
+        placeholders = ",".join("?" * len(ids))
+        rows = self._conn.execute(
+            f"""SELECT s.*, f.path, f.language FROM symbols s
+                JOIN files f ON f.id = s.file_id
+                WHERE s.id IN ({placeholders})""",
+            tuple(ids),
+        ).fetchall()
+        return {int(row["id"]): dict(row) for row in rows}
+
+    def filtered_symbol_ids(
+        self,
+        *,
+        path: Optional[str],
+        languages: Sequence[str],
+    ) -> list[int]:
+        path_pat = validate_path_filter(path)
+        langs = validate_languages(languages)
+        rows = self._conn.execute(
+            """SELECT s.id, f.path, f.language FROM symbols s
+               JOIN files f ON f.id = s.file_id"""
+        ).fetchall()
+        results = [dict(r) for r in rows]
+        if langs:
+            lang_set = set(langs)
+            results = [
+                r for r in results
+                if r.get("language") is not None and str(r["language"]).lower() in lang_set
+            ]
+        if path_pat is not None:
+            spec = path_filter_spec(path_pat)
+            results = [r for r in results if matches_path(r["path"], spec)]
+        return [int(r["id"]) for r in results]

@@ -9,7 +9,7 @@
 
 Local, self-contained code intelligence for AI agents. Index your codebase once, query it deterministically with the `hc` CLI and `hc_*` MCP tools — one install, no external services.
 
-hybrid-coco ships everything in one component: SQLite storage, tree-sitter parsers, CLI, MCP server, Claude Code hooks, awareness, and agent skills. No embeddings, no vector database, no Docker, no companion tools.
+hybrid-coco ships everything in one component: SQLite storage, tree-sitter parsers, CLI, MCP server, Claude Code hooks, awareness, and agent skills. The default install is lexical (FTS5). Embeddings are an optional extra (`hybrid-coco[vec]`), not a required dependency. No Docker, no companion tools.
 
 ```
 pip install hybrid-coco && hc init
@@ -33,7 +33,8 @@ The hook intercepts `Read` and `Grep` calls and suggests the equivalent `hc_*` t
 
 ```
 Source files  ──tree-sitter──►  SQLite + FTS5  ──►  CLI (hc)
-                                     │
+                                     │                    │
+                                     │                    └─ optional: sqlite-vec (hc embed / hc semantic)
                                      └──────────────►  MCP server (hc_*)
                                                            │
                                                     Claude Code hooks
@@ -43,7 +44,7 @@ Source files  ──tree-sitter──►  SQLite + FTS5  ──►  CLI (hc)
 
 1. **`hc index .`**: parses every source file with tree-sitter, extracts symbols (functions, classes, methods, imports) with their signatures, docstrings, and line numbers into a FTS5 trigram index
 2. **`hc query / symbol / file-context / snippet`**: queries the index and returns structure or bounded source slices — not whole files
-3. **`hc serve`**: exposes the same queries as MCP tools (`hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status`) for Claude Code
+3. **`hc serve`**: exposes the same queries as MCP tools (`hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_semantic`, `hc_status`) for Claude Code
 4. **Hooks**: `hc init` registers PreToolUse/PostToolUse hooks that suggest `hc_*` tools whenever Claude is about to `Read` or `Grep` an indexed file
 
 ## Benchmark
@@ -111,6 +112,7 @@ hc_symbol("TimedExecution")    # exact/prefix symbol lookup → line range
 hc_structure("function", lang=["rust"])  # tree-sitter shape search
 hc_snippet("src/git.rs", 45, 67)  # bounded source slice from disk
 hc_file_context("src/git.rs")  # all symbols in a file, structured
+hc_semantic("token savings")   # optional; requires hc embed
 hc_status()                    # index stats
 ```
 
@@ -135,7 +137,11 @@ hc snippet <PATH> <START> <END>
                          Read PATH lines START..END from disk (1-based, inclusive)
 hc structure <KIND> [--path P] [--lang L]...
                          Structural search: function | method | class | import
-hc doctor [PATH]         Diagnostics: index, schema, languages, MCP/hooks, versions
+hc embed [PATH] --model NAME
+                         Build sqlite-vec embeddings (requires hybrid-coco[vec])
+hc semantic <TEXT> [--path P] [--lang L]... [--offset N] [--limit N]
+                         Nearest-neighbour search; uses the model stored by hc embed
+hc doctor [PATH]         Diagnostics: index, schema, languages, embeddings extra, MCP/hooks, versions
 hc reset [PATH] [-f] [--all]
                          Delete index DB; --all also drops project MCP entry
 hc serve                 Start MCP server (stdio)
@@ -171,6 +177,18 @@ exclude = ["**/generated/**"]
 
 `hc reset` deletes the index database and leaves `config.toml` in place. `hc doctor` writes the default file if it is missing, and fails if the existing file is invalid.
 
+## Optional embeddings
+
+The default `pip install hybrid-coco` does not pull embedding libraries. Semantic search needs the extra and an explicit model:
+
+```
+pip install 'hybrid-coco[vec]'
+hc embed --model BAAI/bge-small-en-v1.5
+hc semantic "how are token savings recorded"
+```
+
+`hc_semantic` uses the model stored in the index. It fails if the extra is missing or if `hc embed` has not been run. `hc doctor` reports a hint when the extra is absent, not an error.
+
 ## Supported languages
 
 | Language | Parser |
@@ -191,7 +209,7 @@ Adding a language requires implementing a ~100-line parser in `src/hybrid_coco/p
 
 ## Design decisions
 
-**SQLite + FTS5, not a vector database**: deterministic results, zero infrastructure, single file. Trigram search covers partial matches and is fast enough for codebases up to ~100K files. Semantic (embedding) search can be layered on top via `sqlite-vec` without changing the schema.
+**SQLite + FTS5, not a required vector database**: deterministic lexical results by default, zero infrastructure, single file. Semantic search is opt-in via `pip install 'hybrid-coco[vec]'`, then `hc embed --model NAME` and `hc semantic` / `hc_semantic`. After `hc index` / `hc update`, embeddings can go stale — run `hc embed` again with the same `--model`. No default model: `--model` is required.
 
 **tree-sitter, not regex**: symbol extraction is grammar-aware. Signatures and docstrings are extracted structurally, not by pattern matching.
 

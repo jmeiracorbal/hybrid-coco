@@ -196,6 +196,50 @@ def _check_versions() -> DoctorCheck:
     return DoctorCheck("version", True, ", ".join(found), "ok")
 
 
+def _check_embeddings(root: Path) -> DoctorCheck:
+    from .vectors import VectorError, embedding_status, extra_installed
+
+    if not extra_installed():
+        return DoctorCheck(
+            "embeddings",
+            True,
+            "extra not installed — pip install 'hybrid-coco[vec]'",
+            "info",
+        )
+    db = get_index_path(root)
+    store = Store(db)
+    try:
+        status = embedding_status(store)
+        symbol_count = store.stats()["symbols"]
+    except VectorError as exc:
+        return DoctorCheck("embeddings", False, str(exc), "warn")
+    finally:
+        store.close()
+    if status is None:
+        return DoctorCheck(
+            "embeddings",
+            True,
+            "sqlite-vec available; no vectors — hc embed --model NAME",
+            "info",
+        )
+    if status.vectors != symbol_count:
+        return DoctorCheck(
+            "embeddings",
+            False,
+            (
+                f"stale — {status.vectors} vectors vs {symbol_count} symbols; "
+                f"run: hc embed --model {status.model}"
+            ),
+            "warn",
+        )
+    return DoctorCheck(
+        "embeddings",
+        True,
+        f"model={status.model} dim={status.dimensions} vectors={status.vectors}",
+        "ok",
+    )
+
+
 def _check_tool_names_hint() -> DoctorCheck:
     return DoctorCheck(
         "tool names",
@@ -248,6 +292,7 @@ def run_doctor(root: Path) -> DoctorReport:
     checks.append(_check_schema(root))
     if checks[-1].ok:
         checks.append(_check_languages(root))
+        checks.append(_check_embeddings(root))
     checks.append(_check_versions())
     checks.append(_check_mcp(root))
     checks.append(_check_hooks())

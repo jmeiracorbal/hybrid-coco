@@ -32,7 +32,8 @@ Need to understand a file?
 Need to find something across the codebase?
   ├─ know the name? → hc_symbol("name")
   ├─ know a pattern? → hc_search("query")
-  └─ know the shape (fn/class/import)? → hc_structure("function"|"method"|"class"|"import")
+  ├─ know the shape (fn/class/import)? → hc_structure("function"|"method"|"class"|"import")
+  └─ FTS missed it and embeddings already exist? → hc_semantic("query")
        └─ found lines? → hc_snippet("path", line_start, line_end)
 
 Need to read a full file?
@@ -45,12 +46,15 @@ Need to read a full file?
 |---|---|---|
 | Find by exact/prefix name | `hc_symbol` | Read + grep |
 | Search by concept/keyword | `hc_search` | Recursive grep |
+| Search by meaning (if embeddings exist) | `hc_semantic` | Guessing extra grep terms |
 | Search by code shape | `hc_structure` | Blind grep/Read |
 | Understand a file | `hc_file_context` | Full-file Read |
 | Read a known line range | `hc_snippet` | Partial Read |
 | Check coverage / health | `hc_status` | ls / find |
 
-Optional filters on `hc_symbol` / `hc_search`: `path` (gitignore-style), `lang` (e.g. `["python"]`), `offset` / `limit`. Filters AND together.
+Optional filters on `hc_symbol` / `hc_search` / `hc_semantic`: `path` (gitignore-style), `lang` (e.g. `["python"]`), `offset` / `limit`. Filters AND together.
+
+`hc_semantic` requires the optional extra and an existing embedding table. Do **not** run `hc embed` unless the user asked — it downloads a local model. If `hc_semantic` errors because embeddings are missing, use `hc_search` / `hc_symbol` instead.
 
 ## Lifecycle (do not fight hooks)
 

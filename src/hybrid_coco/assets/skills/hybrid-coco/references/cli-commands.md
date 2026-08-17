@@ -12,8 +12,12 @@ hc file-context <PATH>   All symbols in PATH (relative to cwd). ~97% savings vs 
 hc snippet <PATH> <START> <END>
                          Read PATH lines START..END from disk (1-based, inclusive)
 hc structure <KIND>      Structural search: function | method | class | import
+hc embed [PATH] --model NAME
+                         Build sqlite-vec embeddings. --model is required (no default)
+hc semantic <TEXT>       Nearest-neighbour search using the model stored by hc embed
+                         Same filter flags as query
 hc serve                 Start MCP server (stdio)
-hc doctor [PATH]         Diagnostics (index/schema/languages/MCP/hooks/versions)
+hc doctor [PATH]         Diagnostics (index/schema/languages/embeddings extra/MCP/hooks/versions)
 hc reset [PATH]          Delete index DB. Flags: -f, --all (also drop project MCP entry)
 hc init [PATH]           Index + ensure .hybrid-coco/ in .gitignore + register MCP
 ```
@@ -30,8 +34,8 @@ Edit the file to apply include/exclude/language overrides. `hc reset` keeps `con
 
 ## Index Resolution
 
-- `hc query`, `hc symbol`, `hc file-context`, `hc snippet`, `hc structure`, `hc serve`: resolve from `Path.cwd()` — no PATH argument except where shown
-- `hc index`, `hc update`, `hc status`: accept optional PATH argument (default: cwd)
+- `hc query`, `hc symbol`, `hc file-context`, `hc snippet`, `hc structure`, `hc semantic`, `hc serve`: resolve from `Path.cwd()` — no PATH argument except where shown
+- `hc index`, `hc update`, `hc status`, `hc embed`: accept optional PATH argument (default: cwd)
 
 Always run `hc query` and `hc symbol` from inside the indexed project root.
 
@@ -100,6 +104,22 @@ Errors exit non-zero: missing file, empty file, or line range out of bounds.
 ```
 
 `KIND` is one of `function`, `method`, `class`, `import`. Same `--path`, `--lang`, `--offset`, `--limit` filters as `hc query`.
+
+### `hc embed --model NAME`
+
+```
+Embedded 312 symbols  model=NAME  dim=384
+```
+
+Requires `pip install 'hybrid-coco[vec]'`. `--model` has no default. After `hc index` / `hc update`, embeddings may be stale — run `hc embed` again.
+
+### `hc semantic <TEXT>`
+
+```
+[src/tracking.rs:1036]  struct TimedExecution  dist=0.4120 — Records token savings to SQLite
+```
+
+Uses the model stored by `hc embed`. Same `--path`, `--lang`, `--offset`, `--limit` filters as `hc query`. Fails if the extra is missing or embeddings have not been built.
 
 ## Notes
 
