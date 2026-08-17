@@ -17,7 +17,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 
 | Area | State |
 |------|--------|
-| Indexer | Incremental SHA-256 walk, gitignore-aware, `--exclude` patterns |
+| Indexer | Incremental SHA-256 walk, gitignore-aware, `.hybrid-coco/config.toml` + CLI `--exclude` |
 | Store | SQLite files + symbols + FTS5 trigram |
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
 | CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init` |
@@ -36,7 +36,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | 05 | Agent skill owns lifecycle | **done** |
 | 06 | Symbol body / targeted snippet | **done** |
 | 07 | Structural search (tree-sitter patterns) | **done** |
-| 08 | Settings file (include / exclude) | **next** |
+| 08 | Settings file (include / exclude) | **done** |
 | 09 | Embeddings optional layer (`sqlite-vec`) | deferred |
 
 ---
@@ -128,7 +128,9 @@ Tree-sitter query / by-example patterns over the working tree (or indexed ASTs),
 
 ## Phase 08 — Settings file (later)
 
-Project-level include/exclude / language overrides (e.g. YAML under `.hybrid-coco/`), replacing ad-hoc CLI-only excludes. Must remain optional — defaults keep `pip install && hc init` zero-config.
+Project-level include/exclude / language overrides in `.hybrid-coco/config.toml`. The file is always created on `hc init` / `hc index` with explicit empty lists; all keys are required.
+
+**Done:** `.hybrid-coco/config.toml` (`include`, `exclude`, `languages`) is written if missing (index/init/doctor self-heal); load reads the file after create; invalid existing files fail and are not overwritten; CLI `--exclude` still applies; `hc reset` keeps the config file.
 
 ## Phase 09 — Embeddings optional layer (deferred)
 

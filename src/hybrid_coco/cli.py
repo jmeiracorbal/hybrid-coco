@@ -16,6 +16,7 @@ from . import __version__
 from .config import get_index_path
 from .filters import DEFAULT_QUERY_LIMIT, validate_languages, validate_paging, validate_path_filter
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
+from .settings import SettingsError, ensure_settings, load_or_create_settings, settings_path
 from .snippet import SnippetError, read_snippet
 from .store import Store
 from .structure import StructureError, search_structure, validate_structure_kind
@@ -93,7 +94,11 @@ def cmd_index(path: str, exclude: tuple, verbose: bool):
     patterns = _parse_exclude(exclude)
     root = Path(path).resolve()
     click.echo(f"Indexing {root} …", err=True)
-    result = index_path(root, exclude=patterns)
+    try:
+        result = index_path(root, exclude=patterns)
+    except SettingsError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
     msg = (
         f"Done. Indexed: {result.indexed}  Skipped (unchanged): {result.skipped}  "
         f"Errors: {result.errors}"
@@ -126,7 +131,11 @@ def cmd_update(path: str, exclude: tuple, verbose: bool):
         sys.exit(1)
 
     click.echo(f"Updating {root} …", err=True)
-    result = index_path(root, force=False, exclude=patterns)
+    try:
+        result = index_path(root, force=False, exclude=patterns)
+    except SettingsError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
     msg = (
         f"Done. Re-indexed: {result.indexed}  Unchanged: {result.skipped}  "
         f"Errors: {result.errors}"
@@ -585,7 +594,12 @@ def cmd_init(path: str, global_config: bool):
 
     # Step 1: index
     click.echo(f"Indexing {root} …")
-    index_path(root)
+    created_cfg = ensure_settings(root)
+    try:
+        index_path(root)
+    except SettingsError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
     db = get_index_path(root)
 
     # Count total symbols now
@@ -602,17 +616,22 @@ def cmd_init(path: str, global_config: bool):
         click.echo(f"  ✓ Added {root / '.gitignore'} entry for .hybrid-coco/")
     else:
         click.echo("  ✓ .hybrid-coco/ already in .gitignore")
+    cfg = settings_path(root)
+    if created_cfg:
+        click.echo(f"  ✓ Wrote {cfg.relative_to(root)}")
+    else:
+        click.echo(f"  ✓ {cfg.relative_to(root)} already present")
     click.echo()
 
     # Step 2: register MCP in project settings
     if global_config:
-        settings_path = Path.home() / ".claude" / "settings.json"
+        mcp_settings = Path.home() / ".claude" / "settings.json"
         label = "~/.claude/settings.json"
     else:
-        settings_path = root / ".claude" / "settings.json"
+        mcp_settings = root / ".claude" / "settings.json"
         label = ".claude/settings.json"
 
-    _merge_mcp_settings(settings_path)
+    _merge_mcp_settings(mcp_settings)
     click.echo(f"MCP server registered in {label}")
     for tool in MCP_TOOLS:
         click.echo(f"  ✓ {tool}")

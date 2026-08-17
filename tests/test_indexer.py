@@ -193,6 +193,7 @@ def test_init_adds_hybrid_coco_gitignore(fixture_dir: Path, monkeypatch: pytest.
 
     gi = (fixture_dir / ".gitignore").read_text(encoding="utf-8")
     assert ".hybrid-coco/" in gi
+    assert (fixture_dir / ".hybrid-coco" / "config.toml").is_file()
 
     # idempotent
     result2 = runner.invoke(main, ["init", str(fixture_dir)])
@@ -250,6 +251,7 @@ def test_doctor_ok_with_index(fixture_dir: Path):
     assert "[ok] languages:" in result.output
     assert "python" in result.output
     assert "[ok] version:" in result.output
+    assert "[ok] settings:" in result.output
     assert "[hint] tool names:" in result.output
     assert "OK" in result.output
 
@@ -263,7 +265,7 @@ def test_reset_removes_index(fixture_dir: Path):
     result = runner.invoke(main, ["reset", str(fixture_dir), "-f"])
     assert result.exit_code == 0
     assert not db.exists()
-    assert not (fixture_dir / ".hybrid-coco").exists()
+    assert (fixture_dir / ".hybrid-coco" / "config.toml").is_file()
 
     # re-index works after reset
     r2 = index_path(fixture_dir)

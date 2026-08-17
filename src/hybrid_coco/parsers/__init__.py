@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 from .base import Parser, Symbol
 
@@ -34,6 +34,8 @@ _EXT_MAP: dict[str, str] = {
     ".swift": "swift",
 }
 
+KNOWN_LANGUAGES: frozenset[str] = frozenset(_EXT_MAP.values())
+
 # Lazy-loaded parser cache
 _PARSERS: dict[str, Parser] = {}
 
@@ -42,6 +44,14 @@ def detect_language(path: str | Path) -> Optional[str]:
     """Return language name for a file path, or None if unsupported."""
     suffix = Path(path).suffix.lower()
     return _EXT_MAP.get(suffix)
+
+
+def resolve_language(path: str | Path, language_overrides: Mapping[str, str]) -> Optional[str]:
+    """Return language from overrides first, then the built-in extension map."""
+    suffix = Path(path).suffix.lower()
+    if suffix in language_overrides:
+        return language_overrides[suffix]
+    return detect_language(path)
 
 
 def get_parser(language: str) -> Optional[Parser]:
@@ -97,9 +107,9 @@ def get_parser(language: str) -> Optional[Parser]:
         return None
 
 
-def parse_file(path: Path, source: bytes) -> list[Symbol]:
+def parse_file(path: Path, source: bytes, language_overrides: Mapping[str, str]) -> list[Symbol]:
     """Parse a file and return its symbols, or [] on error/unsupported."""
-    lang = detect_language(path)
+    lang = resolve_language(path, language_overrides)
     if lang is None:
         return []
     parser = get_parser(lang)

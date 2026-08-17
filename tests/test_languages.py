@@ -25,6 +25,10 @@ def test_detect_language_new_extensions():
     assert detect_language("App.swift") == "swift"
 
 
+def _parse(path: str, src: bytes):
+    return parse_file(Path(path), src, {})
+
+
 def test_go_parser_extracts_symbols():
     src = textwrap.dedent("""\
         package main
@@ -34,7 +38,7 @@ def test_go_parser_extracts_symbols():
         type User struct { Name string }
         func (u *User) Greet() string { return u.Name }
     """).encode()
-    syms = parse_file(Path("main.go"), src)
+    syms = _parse("main.go", src)
     by_name = {s.name: s for s in syms}
     assert by_name["Login"].kind == "function"
     assert by_name["Login"].docstring and "authenticates" in by_name["Login"].docstring
@@ -54,7 +58,7 @@ def test_java_parser_extracts_symbols():
           public String greet(String name) { return name; }
         }
     """).encode()
-    syms = parse_file(Path("Greeter.java"), src)
+    syms = _parse("Greeter.java", src)
     by_name = {s.name: s for s in syms}
     assert by_name["Greeter"].kind == "class"
     assert by_name["Greeter"].docstring and "greets" in by_name["Greeter"].docstring
@@ -70,7 +74,7 @@ def test_c_parser_extracts_symbols():
         int add(int a, int b) { return a + b; }
         struct Point { int x; int y; };
     """).encode()
-    syms = parse_file(Path("math.c"), src)
+    syms = _parse("math.c", src)
     by_name = {s.name: s for s in syms}
     assert by_name["add"].kind == "function"
     assert by_name["add"].docstring and "add numbers" in by_name["add"].docstring
@@ -89,7 +93,7 @@ def test_cpp_parser_extracts_symbols():
         std::string Greeter::greet(const std::string& name) { return name; }
         int free_func(int x) { return x; }
     """).encode()
-    syms = parse_file(Path("greeter.cpp"), src)
+    syms = _parse("greeter.cpp", src)
     methods = [s for s in syms if s.name == "greet"]
     assert methods
     assert all(s.kind == "method" for s in methods)
@@ -115,7 +119,7 @@ def test_csharp_parser_extracts_symbols():
           public record Person(string Name);
         }
     """).encode()
-    syms = parse_file(Path("Greeter.cs"), src)
+    syms = _parse("Greeter.cs", src)
     classes = {s.name: s for s in syms if s.kind == "class"}
     methods = [s for s in syms if s.kind == "method"]
     assert classes["Greeter"].docstring and "greets" in classes["Greeter"].docstring
@@ -160,7 +164,7 @@ def test_kotlin_parser_extracts_symbols():
 
         fun topLevel(x: Int): Int = x
     """).encode()
-    syms = parse_file(Path("Greeter.kt"), src)
+    syms = _parse("Greeter.kt", src)
     classes = {s.name: s for s in syms if s.kind == "class"}
     methods = [s for s in syms if s.kind == "method"]
     functions = [s for s in syms if s.kind == "function"]
@@ -203,7 +207,7 @@ def test_swift_parser_extracts_symbols():
 
         func topLevel(x: Int) -> Int { return x }
     """).encode()
-    syms = parse_file(Path("Greeter.swift"), src)
+    syms = _parse("Greeter.swift", src)
     classes = {s.name: s for s in syms if s.kind == "class"}
     methods = [s for s in syms if s.kind == "method"]
     functions = [s for s in syms if s.kind == "function"]
