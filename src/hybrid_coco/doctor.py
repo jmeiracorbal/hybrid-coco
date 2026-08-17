@@ -10,10 +10,9 @@ from typing import Optional
 
 from . import __version__
 from .config import HC_DIR, INDEX_FILE, SETTINGS_FILE, get_index_path
+from .hosts import iter_hosts
 from .settings import SettingsError, load_or_create_settings, settings_path
 from .store import Store
-
-_HOOK_NAMES = ("hc-pre-tool-use.sh", "hc-post-tool-use.sh")
 
 
 @dataclass(frozen=True)
@@ -85,50 +84,49 @@ def _check_languages(root: Path) -> DoctorCheck:
     return DoctorCheck("languages", True, detail, "ok")
 
 
-def _mcp_registered(settings_path: Path) -> bool:
-    if not settings_path.is_file():
-        return False
-    try:
-        data = json.loads(settings_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return False
-    servers = data.get("mcpServers")
-    if not isinstance(servers, dict):
-        return False
-    return "hybrid-coco" in servers
-
-
 def _check_mcp(root: Path) -> DoctorCheck:
-    project = root / ".claude" / "settings.json"
-    global_settings = Path.home() / ".claude" / "settings.json"
-    project_ok = _mcp_registered(project)
-    global_ok = _mcp_registered(global_settings)
-    if project_ok or global_ok:
-        where = []
-        if project_ok:
-            where.append(str(project))
-        if global_ok:
-            where.append(str(global_settings))
-        return DoctorCheck("mcp", True, "registered in " + ", ".join(where), "ok")
+    home = Path.home()
+    registered: list[str] = []
+    missing: list[str] = []
+    for name, host in iter_hosts():
+        if host.mcp_registered(root, home=home):
+            registered.append(name)
+        else:
+            missing.append(name)
+    if registered:
+        detail = "registered for " + ", ".join(registered)
+        if missing:
+            detail += f" — not registered: {', '.join(missing)}"
+        return DoctorCheck("mcp", True, detail, "ok")
+    names = ", ".join(missing)
     return DoctorCheck(
         "mcp",
         False,
-        f"hybrid-coco not in {project} or {global_settings} — run: hc init",
+        f"hybrid-coco not registered for any host ({names}) — run: hc init",
         "warn",
     )
 
 
-def _check_hooks() -> DoctorCheck:
-    hooks_dir = Path.home() / ".claude" / "hooks"
-    missing = [name for name in _HOOK_NAMES if not (hooks_dir / name).is_file()]
-    if missing:
-        return DoctorCheck(
-            "hooks",
-            False,
-            f"missing {', '.join(missing)} under {hooks_dir} — run: hc init",
-            "warn",
-        )
-    return DoctorCheck("hooks", True, f"present in {hooks_dir}", "ok")
+def _check_hooks(root: Path) -> DoctorCheck:
+    home = Path.home()
+    present: list[str] = []
+    missing: list[str] = []
+    for name, host in iter_hosts():
+        if host.hooks_present(root, home=home):
+            present.append(name)
+        else:
+            missing.append(name)
+    if present:
+        detail = "present for " + ", ".join(present)
+        if missing:
+            detail += f" — missing: {', '.join(missing)}"
+        return DoctorCheck("hooks", True, detail, "ok")
+    return DoctorCheck(
+        "hooks",
+        False,
+        f"missing for {', '.join(missing)} — run: hc init",
+        "warn",
+    )
 
 
 def _packaging_roots() -> list[Path]:
@@ -240,7 +238,7 @@ def run_doctor(root: Path) -> DoctorReport:
     if not index_check.ok:
         checks.append(_check_versions())
         checks.append(_check_mcp(root))
-        checks.append(_check_hooks())
+        checks.append(_check_hooks(root))
         checks.append(_check_project_settings(root))
         checks.append(_check_tool_names_hint())
         return DoctorReport(checks)
@@ -250,7 +248,7 @@ def run_doctor(root: Path) -> DoctorReport:
         checks.append(_check_languages(root))
     checks.append(_check_versions())
     checks.append(_check_mcp(root))
-    checks.append(_check_hooks())
+    checks.append(_check_hooks(root))
     checks.append(_check_project_settings(root))
     checks.append(_check_tool_names_hint())
     return DoctorReport(checks)
@@ -295,22 +293,8 @@ def reset_index(root: Path, *, wipe_settings: bool) -> list[str]:
             actions.append(f"left {hc_dir} (not empty)")
 
     if wipe_settings:
-        settings_path = root / ".claude" / "settings.json"
-        if not settings_path.is_file():
-            actions.append(f"no project settings at {settings_path}")
-            return actions
-        try:
-            data = json.loads(settings_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
-            raise ValueError(f"cannot read {settings_path}: {exc}") from exc
-        servers = data.get("mcpServers")
-        if isinstance(servers, dict) and "hybrid-coco" in servers:
-            del servers["hybrid-coco"]
-            settings_path.write_text(
-                json.dumps(data, indent=2) + "\n", encoding="utf-8"
-            )
-            actions.append(f"removed hybrid-coco MCP entry from {settings_path}")
-        else:
-            actions.append(f"no hybrid-coco MCP entry in {settings_path}")
+        home = Path.home()
+        for _name, host in iter_hosts():
+            actions.extend(host.remove_mcp(root, home=home))
 
     return actions

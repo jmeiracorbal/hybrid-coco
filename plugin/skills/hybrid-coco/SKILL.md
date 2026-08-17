@@ -66,7 +66,7 @@ After `hc_file_context` or `hc_symbol`, call `hc_snippet(path, line_start, line_
 
 ## Troubleshooting (short)
 
-- **`hc_*` unavailable** → `/hc-init`, then restart Claude Code if MCP was just registered.
+- **`hc_*` unavailable** → `/hc-init`, then restart the agent host if MCP was just registered.
 - **Symbol missing** → language may be unsupported; fall back to Grep. Or run `hc doctor` / `/hc-init` if the index is empty.
 - **Snippet out of range** → re-check lines from `hc_symbol` / `hc_file_context`; paths are relative to project root.
 - **Output is incomplete or unclear** → narrow the query with `path`, `lang`, or `limit`, then retry.

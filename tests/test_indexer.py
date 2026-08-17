@@ -176,20 +176,13 @@ def test_exclude_empty_pattern_fails(fixture_dir: Path):
 
 # ── Test 6: hc init writes .gitignore ─────────────────────────────────────────
 
-def test_init_adds_hybrid_coco_gitignore(fixture_dir: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(
-        "hybrid_coco.cli._install_global",
-        lambda claude_dir: {
-            "awareness_written": True,
-            "claude_md_updated": True,
-            "hooks_installed": True,
-            "settings_patched": True,
-            "skills_installed": ["hybrid-coco", "hc-init", "hc-search"],
-        },
-    )
+def test_init_adds_hybrid_coco_gitignore(fixture_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", lambda: home)
     runner = CliRunner()
     result = runner.invoke(main, ["init", str(fixture_dir)])
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.output
 
     gi = (fixture_dir / ".gitignore").read_text(encoding="utf-8")
     assert ".hybrid-coco/" in gi
@@ -210,25 +203,25 @@ def test_ensure_hc_gitignore_respects_existing_entry(tmp_path: Path):
 
 
 def test_install_global_writes_skills(tmp_path: Path):
-    from hybrid_coco.cli import _install_global
+    from hybrid_coco.hosts.claude import ClaudeHost
 
-    claude_dir = tmp_path / ".claude"
-    claude_dir.mkdir()
-    result = _install_global(claude_dir)
+    home = tmp_path / "home"
+    home.mkdir()
+    root = tmp_path / "proj"
+    root.mkdir()
+    result = ClaudeHost().install(root, global_config=False, home=home)
 
-    assert result["awareness_written"] is True
-    assert set(result["skills_installed"]) == {"hybrid-coco", "hc-init", "hc-search"}
+    assert set(result.skills) == {"hybrid-coco", "hc-init", "hc-search"}
     for name in ("hybrid-coco", "hc-init", "hc-search"):
-        skill_md = claude_dir / "skills" / name / "SKILL.md"
+        skill_md = home / ".claude" / "skills" / name / "SKILL.md"
         assert skill_md.is_file()
         text = skill_md.read_text(encoding="utf-8")
         assert text.startswith("---")
         assert f"name: {name}" in text
-    assert (claude_dir / "skills" / "hybrid-coco" / "references" / "mcp-tools.md").is_file()
+    assert (home / ".claude" / "skills" / "hybrid-coco" / "references" / "mcp-tools.md").is_file()
 
-    # idempotent overwrite
-    result2 = _install_global(claude_dir)
-    assert set(result2["skills_installed"]) == {"hybrid-coco", "hc-init", "hc-search"}
+    result2 = ClaudeHost().install(root, global_config=False, home=home)
+    assert set(result2.skills) == {"hybrid-coco", "hc-init", "hc-search"}
 
 
 # ── Test 8: doctor + reset ────────────────────────────────────────────────────

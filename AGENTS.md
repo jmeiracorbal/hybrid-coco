@@ -9,7 +9,7 @@ Reglas para agentes que trabajan en este repositorio. Estado del producto y fase
 - SQLite only — no PostgreSQL, no Docker, no always-on server infrastructure
 - FTS5 + tree-sitter before any embedding / vector layer
 - `pip install hybrid-coco && hc init` must work — two commands, done
-- MCP server in Claude Code project settings (`.claude/settings.json`), not desktop config
+- MCP server in the **project** host config (Claude Code: `.claude/settings.json`; Cursor: `.cursor/mcp.json`), not desktop-only config
 - MCP tool names `hc_*` must never be truncated or renamed
 - `.claude/` stays gitignored (local Claude Code settings only; not versioned)
 
@@ -19,7 +19,7 @@ Reglas para agentes que trabajan en este repositorio. Estado del producto y fase
 
 - **Roadmap:** phase status and scope live in `ROADMAP.md`; update the Status column when a phase lands
 - **Languages:** new parsers under `src/hybrid_coco/parsers/`, registry in `parsers/__init__.py`, tests in `tests/test_languages.py`, README language table
-- **Skills:** source of truth `src/hybrid_coco/assets/skills/`; mirror to `skills/` and `plugin/skills/`; `hc init` installs into `~/.claude/skills/`
+- **Skills:** source of truth `src/hybrid_coco/assets/skills/`; mirror to `skills/` and `plugin/skills/`; `hc init` installs the same set into each host's skill directory
 - **Tests:** `uv run pytest` before merge
 - **PR / roadmap text:** English
 - **Commits / PRs:** project owner identity (`Jose Meira <90699520+jmeiracorbal@users.noreply.github.com>`) — not the cloud agent default author; use `--no-verify` if hooks inject co-author lines
@@ -50,6 +50,7 @@ Do this after every landed feature/fix merge that ships to users.
 | CLI | `src/hybrid_coco/cli.py` |
 | Indexer | `src/hybrid_coco/indexer.py` |
 | MCP server | `src/hybrid_coco/server.py` |
+| Agent hosts | `src/hybrid_coco/hosts/` |
 | Parsers | `src/hybrid_coco/parsers/` |
 | Packaged assets (hooks, awareness, skills) | `src/hybrid_coco/assets/` |
 | Claude Code plugin | `plugin/` |

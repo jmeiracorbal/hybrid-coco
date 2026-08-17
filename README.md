@@ -43,8 +43,8 @@ Source files  ──tree-sitter──►  SQLite + FTS5  ──►  CLI (hc)
 
 1. **`hc index .`**: parses every source file with tree-sitter, extracts symbols (functions, classes, methods, imports) with their signatures, docstrings, and line numbers into a FTS5 trigram index
 2. **`hc query / symbol / file-context / snippet`**: queries the index and returns structure or bounded source slices — not whole files
-3. **`hc serve`**: exposes the same queries as MCP tools (`hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status`) for Claude Code
-4. **Hooks**: `hc init` registers PreToolUse/PostToolUse hooks that suggest `hc_*` tools whenever Claude is about to `Read` or `Grep` an indexed file
+3. **`hc serve`**: exposes the same queries as MCP tools (`hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status`)
+4. **Hooks**: `hc init` registers host-native hooks that suggest `hc_*` tools whenever the agent is about to `Read` or `Grep` an indexed file (`hc init --host cursor` for Cursor)
 
 ## Benchmark
 
@@ -86,22 +86,24 @@ Registers the MCP server and hooks automatically. Requires `hc` in PATH — inst
 pip install hybrid-coco   # or: uv tool install hybrid-coco
 ```
 
-### 2. Index your project and register with Claude Code
+### 2. Index your project and register with an agent host
 
 ```bash
 cd your-project/
-hc init
+hc init                 # Claude Code (default)
+hc init --host cursor   # Cursor
+hc init --host all      # every supported host
 ```
 
 `hc init` does four things:
 - Indexes the current directory (tree-sitter, SHA-256 incremental)
-- Registers the MCP server in `.claude/settings.json`
-- Installs global hooks in `~/.claude/hooks/` that intercept `Read` and `Grep`
-- Installs agent skills in `~/.claude/skills/` (`hybrid-coco`, `hc-init`, `hc-search`)
+- Registers the MCP server in the host project config
+- Installs host-native hooks that intercept `Read` and `Grep` (or the host's equivalent)
+- Installs the same agent skills (`hybrid-coco`, `hc-init`, `hc-search`) into that host's skill directories
 
-Restart Claude Code to activate.
+Restart the agent host to activate.
 
-### 3. Use from Claude Code
+### 3. Use from the agent
 
 The MCP tools are now available in every conversation:
 
@@ -116,7 +118,19 @@ hc_status()                    # index stats
 
 Invocable skills: `/hc-init` (setup/repair without full-reindex storms), `/hc-search` (choose the right `hc_*` query). The main `hybrid-coco` skill covers when to prefer `hc_*` over Read/Grep.
 
-The hooks will remind you (via stderr) whenever Claude is about to read an indexed file directly.
+The hooks will remind the agent (via the host's hook protocol) whenever it is about to read an indexed file directly.
+
+## Agent hosts
+
+| Host | `hc init` | MCP | Skills | Hooks |
+|---|---|---|---|---|
+| Claude Code | default | `.claude/settings.json` | `~/.claude/skills/` | PreToolUse `Read\|Grep`, PostToolUse `Write\|Edit` |
+| Cursor | `--host cursor` | `.cursor/mcp.json` | `.cursor/skills/` + `~/.cursor/skills/` | `preToolUse` `Read\|Grep`, `beforeReadFile`, `postToolUse` `Write\|StrReplace`, `afterFileEdit`, `sessionStart` |
+| Codex | phase 11 | `.codex/config.toml` | `.agents/skills/` | Bash / `apply_patch` (no Read tool) |
+| OpenCode | phase 12 | `opencode.json` | `.opencode/skills/` | plugin `tool.execute.before/after` |
+| Devin | phase 13 | `.devin/mcp_config.json` | `.devin/skills/` | `.devin/hooks.v1.json` (`read`/`grep`) |
+
+Skills are equivalent on every host (same packaged files). Hooks use only the events that host actually supports — Claude Code can intercept more than Cursor; Cursor cloud agents require project-level `.cursor/hooks.json`. Codex, OpenCode, and Devin land in follow-up PRs (roadmap phases 11–13).
 
 ## CLI reference
 
@@ -137,9 +151,12 @@ hc structure <KIND> [--path P] [--lang L]...
                          Structural search: function | method | class | import
 hc doctor [PATH]         Diagnostics: index, schema, languages, MCP/hooks, versions
 hc reset [PATH] [-f] [--all]
-                         Delete index DB; --all also drops project MCP entry
+                         Delete index DB; --all also drops project MCP entries
 hc serve                 Start MCP server (stdio)
-hc init [PATH]           Index + .gitignore entry + register MCP + install hooks
+hc hook <HOST> <EVENT>   Host lifecycle hook (JSON stdin/stdout)
+hc init [PATH] [--host NAME]...
+                         Index + .gitignore + register MCP/hooks/skills
+                         --host: claude (default), cursor, all (repeatable)
 ```
 
 `--exclude` accepts gitignore-style patterns and may be repeated. They are combined with `exclude` in `.hybrid-coco/config.toml`. If that file is missing, `hc init`, `hc index`, `hc update`, and `hc doctor` write the default and continue.
@@ -195,7 +212,7 @@ Adding a language requires implementing a ~100-line parser in `src/hybrid_coco/p
 
 **tree-sitter, not regex**: symbol extraction is grammar-aware. Signatures and docstrings are extracted structurally, not by pattern matching.
 
-**No server process**: `hc serve` runs as a stdio MCP server launched on demand by Claude Code. There is no daemon to manage.
+**No server process**: `hc serve` runs as a stdio MCP server launched on demand by the agent host. There is no daemon to manage.
 
 **Incremental by default**: `hc update` re-indexes only files whose SHA-256 has changed. Full re-index is only needed on first run or after `.gitignore` changes.
 
@@ -206,8 +223,8 @@ hybrid-coco is a single local component:
 - SQLite storage in the project workspace
 - tree-sitter parsers for symbol extraction
 - CLI (`hc`) for indexing and querying
-- MCP server (`hc_*`) for Claude Code
-- hooks, awareness, and skills shipped with the package
+- MCP server (`hc_*`) for Claude Code, Cursor, and other MCP hosts
+- hooks, awareness, and skills shipped with the package (`hc init --host`)
 
 It does not require companion services, external proxies, background daemons, or additional infrastructure.
 

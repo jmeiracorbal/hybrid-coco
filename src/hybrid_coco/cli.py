@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import datetime
-import json
 import logging
-import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -16,6 +13,7 @@ from . import __version__
 from .config import get_index_path
 from .filters import DEFAULT_QUERY_LIMIT, validate_languages, validate_paging, validate_path_filter
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
+from .hosts import HOST_NAMES, install_hosts, resolve_host_names
 from .settings import SettingsError, ensure_settings, load_or_create_settings, settings_path
 from .snippet import SnippetError, read_snippet
 from .store import Store
@@ -47,10 +45,6 @@ def _parse_query_filters(
         click.echo(f"Error: {exc}", err=True)
         sys.exit(1)
     return path_f, langs, offset, limit
-
-# ── Assets ────────────────────────────────────────────────────────────────────
-
-_ASSETS_DIR = Path(__file__).parent / "assets"
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -363,7 +357,7 @@ def cmd_structure(kind: str, path_filter: str | None, lang: tuple, offset: int, 
 
 @main.command("serve")
 def cmd_serve():
-    """Start MCP server (stdio). Register in Claude Code with: hc init"""
+    """Start MCP server (stdio). Register with: hc init"""
     from .server import run_server
     run_server(Path.cwd())
 
@@ -392,7 +386,7 @@ def cmd_doctor(path: str):
     "--all",
     "wipe_all",
     is_flag=True,
-    help="Also remove hybrid-coco MCP entry from project .claude/settings.json",
+    help="Also remove hybrid-coco MCP entries from registered agent hosts",
 )
 def cmd_reset(path: str, force: bool, wipe_all: bool):
     """Delete the local index database (and optionally project MCP settings)."""
@@ -403,7 +397,7 @@ def cmd_reset(path: str, force: bool, wipe_all: bool):
     if not force:
         parts = [f"Delete index at {db}"]
         if wipe_all:
-            parts.append(f"and hybrid-coco MCP entry in {root / '.claude' / 'settings.json'}")
+            parts.append("and hybrid-coco MCP entries from agent host configs")
         click.confirm(" ".join(parts) + "?", abort=True)
 
     try:
@@ -417,182 +411,52 @@ def cmd_reset(path: str, force: bool, wipe_all: bool):
     click.echo("Done. Run: hc index " + str(root))
 
 
+# ── hc hook ──────────────────────────────────────────────────────────────────
+
+@main.command("hook")
+@click.argument("host")
+@click.argument("event")
+def cmd_hook(host: str, event: str):
+    """Run a host lifecycle hook (JSON on stdin/stdout). Used by agent hosts."""
+    from .hosts.runtime import run_hook
+
+    code = run_hook(host, event, sys.stdin.read(), Path.cwd())
+    sys.exit(code)
+
+
 # ── hc init ──────────────────────────────────────────────────────────────────
-
-MCP_ENTRY = {
-    "command": "hc",
-    "args": ["serve"],
-    "type": "stdio",
-}
-
-MCP_TOOLS = [
-    "hc_search",
-    "hc_symbol",
-    "hc_file_context",
-    "hc_snippet",
-    "hc_structure",
-    "hc_status",
-]
-
-
-def _merge_mcp_settings(settings_path: Path) -> None:
-    """Merge hybrid-coco MCP entry into the given settings.json (creates if missing)."""
-    if settings_path.exists():
-        try:
-            data = json.loads(settings_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            data = {}
-    else:
-        data = {}
-
-    data.setdefault("mcpServers", {})
-    data["mcpServers"]["hybrid-coco"] = MCP_ENTRY
-
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    settings_path.write_text(
-        json.dumps(data, indent=2) + "\n", encoding="utf-8"
-    )
-
-
-# ── Global Claude Code integration ───────────────────────────────────────────
-
-_HC_HOOK_PATH_PRE = "~/.claude/hooks/hc-pre-tool-use.sh"
-_HC_HOOK_PATH_POST = "~/.claude/hooks/hc-post-tool-use.sh"
-
-_HC_PRE_HOOK_ENTRY = {
-    "matcher": "Read|Grep",
-    "hooks": [{"type": "command", "command": _HC_HOOK_PATH_PRE}],
-}
-_HC_POST_HOOK_ENTRY = {
-    "matcher": "Write|Edit",
-    "hooks": [{"type": "command", "command": _HC_HOOK_PATH_POST}],
-}
-
-
-def _entry_present(entries: list, command: str) -> bool:
-    """Return True if any hook entry already references the given command."""
-    for entry in entries:
-        for hook in entry.get("hooks", []):
-            if hook.get("command") == command:
-                return True
-    return False
-
-
-def _install_skills(claude_dir: Path) -> list[str]:
-    """Copy packaged skills into ~/.claude/skills/. Returns installed skill names."""
-    src_root = _ASSETS_DIR / "skills"
-    if not src_root.is_dir():
-        return []
-
-    dst_root = claude_dir / "skills"
-    installed: list[str] = []
-    for skill_dir in sorted(src_root.iterdir()):
-        if not skill_dir.is_dir():
-            continue
-        skill_md = skill_dir / "SKILL.md"
-        if not skill_md.is_file():
-            continue
-        dst = dst_root / skill_dir.name
-        if dst.exists():
-            shutil.rmtree(dst)
-        shutil.copytree(skill_dir, dst)
-        installed.append(skill_dir.name)
-    return installed
-
-
-def _install_global(claude_dir: Path) -> dict[str, bool | list[str]]:
-    """
-    Install hybrid-coco awareness, hooks, and skills in Claude Code global config.
-
-    Returns a dict with keys:
-      awareness_written, claude_md_updated, hooks_installed, settings_patched,
-      skills_installed (list of skill names)
-    """
-    result: dict[str, bool | list[str]] = {
-        "awareness_written": False,
-        "claude_md_updated": False,
-        "hooks_installed": False,
-        "settings_patched": False,
-        "skills_installed": [],
-    }
-
-    # 1. Write ~/.claude/hybrid-coco.md
-    src_awareness = _ASSETS_DIR / "hybrid-coco.md"
-    dst_awareness = claude_dir / "hybrid-coco.md"
-    dst_awareness.write_text(src_awareness.read_text(encoding="utf-8"), encoding="utf-8")
-    result["awareness_written"] = True
-
-    # 2. Add @hybrid-coco.md to ~/.claude/CLAUDE.md
-    claude_md = claude_dir / "CLAUDE.md"
-    tag = "@hybrid-coco.md"
-    if claude_md.exists():
-        content = claude_md.read_text(encoding="utf-8")
-    else:
-        content = ""
-    if tag not in content:
-        sep = "\n" if content and not content.endswith("\n") else ""
-        claude_md.write_text(content + sep + tag + "\n", encoding="utf-8")
-        result["claude_md_updated"] = True
-    else:
-        result["claude_md_updated"] = False  # already present
-
-    # 3. Install hook scripts to ~/.claude/hooks/
-    hooks_dir = claude_dir / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
-
-    src_hooks = _ASSETS_DIR / "hooks"
-    for hook_name in ("hc-pre-tool-use.sh", "hc-post-tool-use.sh"):
-        src = src_hooks / hook_name
-        dst = hooks_dir / hook_name
-        dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-        dst.chmod(0o755)
-    result["hooks_installed"] = True
-
-    # 4. Install agent skills to ~/.claude/skills/
-    result["skills_installed"] = _install_skills(claude_dir)
-
-    # 5. Patch ~/.claude/settings.json
-    settings_path = claude_dir / "settings.json"
-    if settings_path.exists():
-        try:
-            data = json.loads(settings_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            data = {}
-    else:
-        data = {}
-
-    data.setdefault("hooks", {})
-    data["hooks"].setdefault("PreToolUse", [])
-    data["hooks"].setdefault("PostToolUse", [])
-
-    patched = False
-    if not _entry_present(data["hooks"]["PreToolUse"], _HC_HOOK_PATH_PRE):
-        data["hooks"]["PreToolUse"].append(_HC_PRE_HOOK_ENTRY)
-        patched = True
-    if not _entry_present(data["hooks"]["PostToolUse"], _HC_HOOK_PATH_POST):
-        data["hooks"]["PostToolUse"].append(_HC_POST_HOOK_ENTRY)
-        patched = True
-
-    settings_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    result["settings_patched"] = patched
-
-    return result
-
 
 @main.command("init")
 @click.argument("path", default=".", type=click.Path(exists=True, file_okay=False))
 @click.option(
-    "--global", "global_config", is_flag=True,
-    help="Register in ~/.claude/settings.json instead of .claude/settings.json",
+    "--host",
+    "host_names",
+    multiple=True,
+    default=("claude",),
+    show_default=True,
+    help=(
+        "Agent host to register (repeatable). "
+        f"One of: {', '.join(HOST_NAMES)}, or all."
+    ),
 )
-def cmd_init(path: str, global_config: bool):
-    """Index project and register MCP server in Claude Code."""
+@click.option(
+    "--global", "global_config", is_flag=True,
+    help="Register MCP in the user-level host config instead of the project config",
+)
+def cmd_init(path: str, host_names: tuple[str, ...], global_config: bool):
+    """Index project and register MCP, skills, and hooks for agent hosts."""
+    try:
+        names = resolve_host_names(host_names)
+    except ValueError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
     root = Path(path).resolve()
+    home = Path.home()
 
     click.echo("hybrid-coco init")
     click.echo("━" * 40)
 
-    # Step 1: index
     click.echo(f"Indexing {root} …")
     created_cfg = ensure_settings(root)
     try:
@@ -602,7 +466,6 @@ def cmd_init(path: str, global_config: bool):
         sys.exit(1)
     db = get_index_path(root)
 
-    # Count total symbols now
     store = Store(db)
     try:
         stats = store.stats()
@@ -623,40 +486,17 @@ def cmd_init(path: str, global_config: bool):
         click.echo(f"  ✓ {cfg.relative_to(root)} already present")
     click.echo()
 
-    # Step 2: register MCP in project settings
-    if global_config:
-        mcp_settings = Path.home() / ".claude" / "settings.json"
-        label = "~/.claude/settings.json"
-    else:
-        mcp_settings = root / ".claude" / "settings.json"
-        label = ".claude/settings.json"
+    try:
+        results = install_hosts(root, names, global_config=global_config, home=home)
+    except (OSError, ValueError, FileNotFoundError) as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
 
-    _merge_mcp_settings(mcp_settings)
-    click.echo(f"MCP server registered in {label}")
-    for tool in MCP_TOOLS:
-        click.echo(f"  ✓ {tool}")
-    click.echo()
+    for result in results:
+        click.echo(f"{result.title} integration")
+        for line in result.lines:
+            click.echo(f"  ✓ {line}")
+        click.echo()
 
-    # Step 3: global Claude Code integration
-    claude_dir = Path.home() / ".claude"
-    claude_dir.mkdir(parents=True, exist_ok=True)
-
-    global_result = _install_global(claude_dir)
-
-    click.echo("Global Claude Code integration")
-    click.echo(f"  ✓ ~/.claude/hybrid-coco.md written")
-    if global_result["claude_md_updated"]:
-        click.echo(f"  ✓ @hybrid-coco.md added to ~/.claude/CLAUDE.md")
-    else:
-        click.echo(f"  ✓ @hybrid-coco.md already in ~/.claude/CLAUDE.md")
-    click.echo(f"  ✓ Hooks installed in ~/.claude/hooks/")
-    click.echo(f"  ✓ PreToolUse: Read|Grep → hc_* suggestion")
-    click.echo(f"  ✓ PostToolUse: Write|Edit → hc update")
-    skills = global_result["skills_installed"]
-    if skills:
-        click.echo(f"  ✓ Skills installed in ~/.claude/skills/: {', '.join(skills)}")
-    else:
-        click.echo("  ✓ Skills: none found in package assets")
-    click.echo()
-
-    click.echo("Done. Restart Claude Code to activate.")
+    titles = ", ".join(result.title for result in results)
+    click.echo(f"Done. Restart {titles} to activate.")
