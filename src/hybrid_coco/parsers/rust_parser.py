@@ -9,51 +9,31 @@ import tree_sitter_rust as tsrust
 from tree_sitter import Language, Parser as TSParser, Node
 
 from .base import Parser, Symbol
+from .ts_utils import node_text, preceding_prefix_line_comments
 
 log = logging.getLogger(__name__)
 
 RUST_LANGUAGE = Language(tsrust.language())
 
 
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
-
-
 def _get_identifier(node: Node, source: bytes) -> Optional[str]:
     for child in node.children:
         if child.type == "identifier":
-            return _node_text(child, source)
+            return node_text(child, source)
     return None
 
 
 def _get_type_identifier(node: Node, source: bytes) -> Optional[str]:
     for child in node.children:
         if child.type == "type_identifier":
-            return _node_text(child, source)
+            return node_text(child, source)
     return None
 
 
 def _get_doc_comments(node: Node, source: bytes) -> Optional[str]:
-    """Collect /// doc comments that appear immediately before this node (no gap)."""
-    parent = node.parent
-    if parent is None:
-        return None
-    # Collect all siblings in order, then find those directly before this node
-    siblings = list(parent.children)
-    idx = next((i for i, c in enumerate(siblings) if c == node), None)
-    if idx is None:
-        return None
-    docs = []
-    # Walk backwards from idx-1 collecting contiguous doc comments
-    for sibling in reversed(siblings[:idx]):
-        if sibling.type == "line_comment":
-            text = _node_text(sibling, source)
-            if text.startswith("///"):
-                docs.insert(0, text[3:].strip())
-                continue
-        # Any non-doc-comment breaks the chain
-        break
-    return " ".join(docs) if docs else None
+    return preceding_prefix_line_comments(
+        node, source, comment_type="line_comment", prefix="///"
+    )
 
 
 def _get_function_signature(node: Node, source: bytes) -> Optional[str]:
@@ -62,7 +42,7 @@ def _get_function_signature(node: Node, source: bytes) -> Optional[str]:
     for child in node.children:
         if child.type == "block":
             break
-        parts.append(_node_text(child, source))
+        parts.append(node_text(child, source))
     return " ".join(parts).strip() if parts else None
 
 
@@ -122,7 +102,7 @@ class RustParser(Parser):
             return  # handled children already
 
         elif node.type == "use_declaration":
-            text = _node_text(node, source).strip()
+            text = node_text(node, source).strip()
             symbols.append(Symbol(
                 name=text[:120],
                 kind="import",

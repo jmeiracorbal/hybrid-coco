@@ -9,6 +9,7 @@ import tree_sitter_c_sharp as tscsharp
 from tree_sitter import Language, Node, Parser as TSParser
 
 from .base import Parser, Symbol
+from .ts_utils import child_of_type, node_text, preceding_triple_slash_comments
 
 log = logging.getLogger(__name__)
 
@@ -23,46 +24,6 @@ _TYPE_DECLS = {
 }
 
 
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
-
-
-def _child_of_type(node: Node, typ: str) -> Optional[Node]:
-    for child in node.children:
-        if child.type == typ:
-            return child
-    return None
-
-
-def _preceding_doc_comments(node: Node, source: bytes) -> Optional[str]:
-    parent = node.parent
-    if parent is None:
-        return None
-    siblings = list(parent.children)
-    idx = next((i for i, c in enumerate(siblings) if c.id == node.id), None)
-    if idx is None:
-        return None
-    docs: list[str] = []
-    for sibling in reversed(siblings[:idx]):
-        if sibling.type != "comment":
-            break
-        text = _node_text(sibling, source).strip()
-        if text.startswith("///"):
-            docs.insert(0, text[3:].strip())
-            continue
-        break
-    if not docs:
-        return None
-    joined = " ".join(docs)
-    # strip simple <summary>...</summary> wrappers when present
-    if "<summary>" in joined and "</summary>" in joined:
-        start = joined.find("<summary>") + len("<summary>")
-        end = joined.find("</summary>")
-        if end > start:
-            return joined[start:end].strip()
-    return joined
-
-
 def _sig_until_body(node: Node, source: bytes) -> Optional[str]:
     parts: list[str] = []
     for child in node.children:
@@ -71,7 +32,7 @@ def _sig_until_body(node: Node, source: bytes) -> Optional[str]:
             break
         if child.type == ";":
             break
-        parts.append(_node_text(child, source))
+        parts.append(node_text(child, source))
     text = " ".join(parts).strip()
     return text[:200] if text else None
 
@@ -98,21 +59,21 @@ class CSharpParser(Parser):
         parent_name: Optional[str],
     ):
         if node.type in _TYPE_DECLS:
-            name_node = _child_of_type(node, "identifier")
+            name_node = child_of_type(node, "identifier")
             if name_node is not None:
-                name = _node_text(name_node, source)
+                name = node_text(name_node, source)
                 symbols.append(Symbol(
                     name=name,
                     kind="class",
                     line_start=node.start_point[0] + 1,
                     line_end=node.end_point[0] + 1,
                     signature=f"{_TYPE_DECLS[node.type]} {name}",
-                    docstring=_preceding_doc_comments(node, source),
+                    docstring=preceding_triple_slash_comments(node, source, strip_summary=True),
                     parent_name=parent_name,
                 ))
                 body = (
-                    _child_of_type(node, "declaration_list")
-                    or _child_of_type(node, "enum_member_declaration_list")
+                    child_of_type(node, "declaration_list")
+                    or child_of_type(node, "enum_member_declaration_list")
                 )
                 if body is not None:
                     for child in body.children:
@@ -120,9 +81,9 @@ class CSharpParser(Parser):
                 return
 
         if node.type in ("method_declaration", "constructor_declaration"):
-            name_node = _child_of_type(node, "identifier")
+            name_node = child_of_type(node, "identifier")
             if name_node is not None:
-                name = _node_text(name_node, source)
+                name = node_text(name_node, source)
                 kind = "method" if parent_name else "function"
                 symbols.append(Symbol(
                     name=name,
@@ -130,13 +91,13 @@ class CSharpParser(Parser):
                     line_start=node.start_point[0] + 1,
                     line_end=node.end_point[0] + 1,
                     signature=_sig_until_body(node, source),
-                    docstring=_preceding_doc_comments(node, source),
+                    docstring=preceding_triple_slash_comments(node, source, strip_summary=True),
                     parent_name=parent_name,
                 ))
             return
 
         if node.type == "using_directive":
-            text = _node_text(node, source).strip()
+            text = node_text(node, source).strip()
             symbols.append(Symbol(
                 name=text[:120],
                 kind="import",
@@ -147,7 +108,7 @@ class CSharpParser(Parser):
             return
 
         if node.type == "namespace_declaration":
-            body = _child_of_type(node, "declaration_list")
+            body = child_of_type(node, "declaration_list")
             if body is not None:
                 for child in body.children:
                     self._visit(child, source, symbols, parent_name=parent_name)

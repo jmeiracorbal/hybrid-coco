@@ -9,14 +9,11 @@ import tree_sitter_python as tspython
 from tree_sitter import Language, Parser as TSParser, Node
 
 from .base import Parser, Symbol
+from .ts_utils import node_text
 
 log = logging.getLogger(__name__)
 
 PY_LANGUAGE = Language(tspython.language())
-
-
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
 
 
 def _get_docstring(body_node: Node, source: bytes) -> Optional[str]:
@@ -25,7 +22,7 @@ def _get_docstring(body_node: Node, source: bytes) -> Optional[str]:
         if child.type == "expression_statement":
             inner = child.children[0] if child.children else None
             if inner and inner.type == "string":
-                raw = _node_text(inner, source).strip()
+                raw = node_text(inner, source).strip()
                 # Strip surrounding quotes
                 for q in ('"""', "'''", '"', "'"):
                     if raw.startswith(q) and raw.endswith(q) and len(raw) > 2 * len(q):
@@ -41,14 +38,14 @@ def _get_docstring(body_node: Node, source: bytes) -> Optional[str]:
 def _get_name(node: Node, source: bytes) -> Optional[str]:
     for child in node.children:
         if child.type == "identifier":
-            return _node_text(child, source)
+            return node_text(child, source)
     return None
 
 
 def _get_params(node: Node, source: bytes) -> Optional[str]:
     for child in node.children:
         if child.type == "parameters":
-            return _node_text(child, source)
+            return node_text(child, source)
     return None
 
 
@@ -109,7 +106,7 @@ class PythonParser(Parser):
             return  # already recursed
 
         elif node.type in ("import_statement", "import_from_statement"):
-            text = _node_text(node, source).strip()
+            text = node_text(node, source).strip()
             symbols.append(Symbol(
                 name=text[:120],
                 kind="import",

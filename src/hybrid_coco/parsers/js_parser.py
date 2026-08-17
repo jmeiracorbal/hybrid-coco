@@ -10,18 +10,15 @@ from tree_sitter import Parser as TSParser, Node
 from hybrid_coco.languages.registry import load_tree_sitter
 
 from .base import Parser, Symbol
+from .ts_utils import node_text
 
 log = logging.getLogger(__name__)
-
-
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
 
 
 def _get_name_child(node: Node, source: bytes) -> Optional[str]:
     for child in node.children:
         if child.type in ("identifier", "property_identifier"):
-            return _node_text(child, source)
+            return node_text(child, source)
     return None
 
 
@@ -85,7 +82,7 @@ class JSParser(Parser):
                 ))
 
         elif node.type == "import_statement":
-            text = _node_text(node, source).strip()
+            text = node_text(node, source).strip()
             symbols.append(Symbol(
                 name=text[:120],
                 kind="import",

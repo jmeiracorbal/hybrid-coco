@@ -9,46 +9,19 @@ import tree_sitter_kotlin as tskotlin
 from tree_sitter import Language, Node, Parser as TSParser
 
 from .base import Parser, Symbol
+from .ts_utils import child_of_type, node_text, preceding_block_javadoc
 
 log = logging.getLogger(__name__)
 
 KOTLIN_LANGUAGE = Language(tskotlin.language())
 
 
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
-
-
-def _child_of_type(node: Node, typ: str) -> Optional[Node]:
-    for child in node.children:
-        if child.type == typ:
-            return child
-    return None
-
-
-def _preceding_kdoc(node: Node, source: bytes) -> Optional[str]:
-    parent = node.parent
-    if parent is None:
-        return None
-    siblings = list(parent.children)
-    idx = next((i for i, c in enumerate(siblings) if c.id == node.id), None)
-    if idx is None or idx == 0:
-        return None
-    prev = siblings[idx - 1]
-    if prev.type != "block_comment":
-        return None
-    text = _node_text(prev, source).strip()
-    if text.startswith("/**") and text.endswith("*/"):
-        return text[3:-2].strip()
-    return None
-
-
 def _type_kind_word(node: Node, source: bytes) -> str:
-    if _child_of_type(node, "interface") is not None:
+    if child_of_type(node, "interface") is not None:
         return "interface"
-    modifiers = _child_of_type(node, "modifiers")
+    modifiers = child_of_type(node, "modifiers")
     if modifiers is not None:
-        text = _node_text(modifiers, source)
+        text = node_text(modifiers, source)
         if "enum" in text.split():
             return "enum class"
         if "data" in text.split():
@@ -61,7 +34,7 @@ def _sig_until_body(node: Node, source: bytes) -> Optional[str]:
     for child in node.children:
         if child.type in ("function_body", "class_body", "enum_class_body"):
             break
-        parts.append(_node_text(child, source))
+        parts.append(node_text(child, source))
     text = " ".join(parts).strip()
     return text[:200] if text else None
 
@@ -88,9 +61,9 @@ class KotlinParser(Parser):
         parent_name: Optional[str],
     ):
         if node.type == "class_declaration":
-            name_node = _child_of_type(node, "identifier")
+            name_node = child_of_type(node, "identifier")
             if name_node is not None:
-                name = _node_text(name_node, source)
+                name = node_text(name_node, source)
                 kind_word = _type_kind_word(node, source)
                 symbols.append(Symbol(
                     name=name,
@@ -98,12 +71,12 @@ class KotlinParser(Parser):
                     line_start=node.start_point[0] + 1,
                     line_end=node.end_point[0] + 1,
                     signature=f"{kind_word} {name}",
-                    docstring=_preceding_kdoc(node, source),
+                    docstring=preceding_block_javadoc(node, source),
                     parent_name=parent_name,
                 ))
                 body = (
-                    _child_of_type(node, "class_body")
-                    or _child_of_type(node, "enum_class_body")
+                    child_of_type(node, "class_body")
+                    or child_of_type(node, "enum_class_body")
                 )
                 if body is not None:
                     for child in body.children:
@@ -111,28 +84,28 @@ class KotlinParser(Parser):
                 return
 
         if node.type == "object_declaration":
-            name_node = _child_of_type(node, "identifier")
+            name_node = child_of_type(node, "identifier")
             if name_node is not None:
-                name = _node_text(name_node, source)
+                name = node_text(name_node, source)
                 symbols.append(Symbol(
                     name=name,
                     kind="class",
                     line_start=node.start_point[0] + 1,
                     line_end=node.end_point[0] + 1,
                     signature=f"object {name}",
-                    docstring=_preceding_kdoc(node, source),
+                    docstring=preceding_block_javadoc(node, source),
                     parent_name=parent_name,
                 ))
-                body = _child_of_type(node, "class_body")
+                body = child_of_type(node, "class_body")
                 if body is not None:
                     for child in body.children:
                         self._visit(child, source, symbols, parent_name=name)
                 return
 
         if node.type == "function_declaration":
-            name_node = _child_of_type(node, "identifier")
+            name_node = child_of_type(node, "identifier")
             if name_node is not None:
-                name = _node_text(name_node, source)
+                name = node_text(name_node, source)
                 kind = "method" if parent_name else "function"
                 symbols.append(Symbol(
                     name=name,
@@ -140,13 +113,13 @@ class KotlinParser(Parser):
                     line_start=node.start_point[0] + 1,
                     line_end=node.end_point[0] + 1,
                     signature=_sig_until_body(node, source),
-                    docstring=_preceding_kdoc(node, source),
+                    docstring=preceding_block_javadoc(node, source),
                     parent_name=parent_name,
                 ))
             return
 
         if node.type == "import":
-            text = _node_text(node, source).strip()
+            text = node_text(node, source).strip()
             symbols.append(Symbol(
                 name=text[:120],
                 kind="import",
@@ -157,7 +130,7 @@ class KotlinParser(Parser):
             return
 
         if node.type == "companion_object":
-            body = _child_of_type(node, "class_body")
+            body = child_of_type(node, "class_body")
             if body is not None:
                 for child in body.children:
                     self._visit(child, source, symbols, parent_name=parent_name)

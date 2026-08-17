@@ -9,45 +9,22 @@ import tree_sitter_go as tsgo
 from tree_sitter import Language, Node, Parser as TSParser
 
 from .base import Parser, Symbol
+from .ts_utils import child_of_type, node_text, preceding_prefix_line_comments
 
 log = logging.getLogger(__name__)
 
 GO_LANGUAGE = Language(tsgo.language())
 
 
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
-
-
-def _child_of_type(node: Node, typ: str) -> Optional[Node]:
-    for child in node.children:
-        if child.type == typ:
-            return child
-    return None
-
-
 def _preceding_line_docs(node: Node, source: bytes) -> Optional[str]:
-    parent = node.parent
-    if parent is None:
-        return None
-    siblings = list(parent.children)
-    idx = next((i for i, c in enumerate(siblings) if c.id == node.id), None)
-    if idx is None:
-        return None
-    docs: list[str] = []
-    for sibling in reversed(siblings[:idx]):
-        if sibling.type == "comment":
-            text = _node_text(sibling, source).strip()
-            if text.startswith("//"):
-                docs.insert(0, text[2:].strip())
-                continue
-        break
-    return " ".join(docs) if docs else None
+    return preceding_prefix_line_comments(
+        node, source, comment_type="comment", prefix="//"
+    )
 
 
 def _receiver_type(node: Node, source: bytes) -> Optional[str]:
     """Extract type name from method receiver parameter list."""
-    params = _child_of_type(node, "parameter_list")
+    params = child_of_type(node, "parameter_list")
     if params is None:
         return None
     for child in params.children:
@@ -55,11 +32,11 @@ def _receiver_type(node: Node, source: bytes) -> Optional[str]:
             continue
         for part in child.children:
             if part.type == "type_identifier":
-                return _node_text(part, source)
+                return node_text(part, source)
             if part.type == "pointer_type":
-                ident = _child_of_type(part, "type_identifier")
+                ident = child_of_type(part, "type_identifier")
                 if ident is not None:
-                    return _node_text(ident, source)
+                    return node_text(ident, source)
     return None
 
 
@@ -68,7 +45,7 @@ def _sig_until_block(node: Node, source: bytes) -> Optional[str]:
     for child in node.children:
         if child.type == "block":
             break
-        parts.append(_node_text(child, source))
+        parts.append(node_text(child, source))
     text = " ".join(parts).strip()
     return text[:200] if text else None
 
@@ -89,9 +66,9 @@ class GoParser(Parser):
 
     def _visit(self, node: Node, source: bytes, symbols: list[Symbol]):
         if node.type == "function_declaration":
-            name_node = _child_of_type(node, "identifier")
+            name_node = child_of_type(node, "identifier")
             if name_node is not None:
-                name = _node_text(name_node, source)
+                name = node_text(name_node, source)
                 symbols.append(Symbol(
                     name=name,
                     kind="function",
@@ -102,9 +79,9 @@ class GoParser(Parser):
                 ))
 
         elif node.type == "method_declaration":
-            name_node = _child_of_type(node, "field_identifier")
+            name_node = child_of_type(node, "field_identifier")
             if name_node is not None:
-                name = _node_text(name_node, source)
+                name = node_text(name_node, source)
                 parent = _receiver_type(node, source)
                 symbols.append(Symbol(
                     name=name,
@@ -120,10 +97,10 @@ class GoParser(Parser):
             for child in node.children:
                 if child.type != "type_spec":
                     continue
-                type_id = _child_of_type(child, "type_identifier")
+                type_id = child_of_type(child, "type_identifier")
                 if type_id is None:
                     continue
-                name = _node_text(type_id, source)
+                name = node_text(type_id, source)
                 symbols.append(Symbol(
                     name=name,
                     kind="class",
@@ -134,7 +111,7 @@ class GoParser(Parser):
                 ))
 
         elif node.type == "import_declaration":
-            text = _node_text(node, source).strip()
+            text = node_text(node, source).strip()
             symbols.append(Symbol(
                 name=text[:120],
                 kind="import",
