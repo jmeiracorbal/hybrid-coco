@@ -130,7 +130,7 @@ Tree-sitter query / by-example patterns over the working tree (or indexed ASTs),
 
 Project-level include/exclude / language overrides in `.hybrid-coco/config.toml`. The file is always created on `hc init` / `hc index` with explicit empty lists; all keys are required.
 
-**Done:** `.hybrid-coco/config.toml` (`include`, `exclude`, `languages`) is written if missing; load always reads the file (no absent-file path); CLI `--exclude` still applies; `hc reset` keeps the config file; `hc doctor` fails when it is missing or invalid.
+**Done:** `.hybrid-coco/config.toml` (`include`, `exclude`, `languages`) is written if missing (index/init/doctor self-heal); load reads the file after create; invalid existing files fail and are not overwritten; CLI `--exclude` still applies; `hc reset` keeps the config file.
 
 ## Phase 09 — Embeddings optional layer (deferred)
 

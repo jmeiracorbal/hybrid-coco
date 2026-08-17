@@ -16,7 +16,7 @@ from . import __version__
 from .config import get_index_path
 from .filters import DEFAULT_QUERY_LIMIT, validate_languages, validate_paging, validate_path_filter
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
-from .settings import SettingsError, ensure_settings, settings_path
+from .settings import SettingsError, ensure_settings, load_or_create_settings, settings_path
 from .snippet import SnippetError, read_snippet
 from .store import Store
 from .structure import StructureError, search_structure, validate_structure_kind

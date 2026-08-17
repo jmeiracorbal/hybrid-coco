@@ -10,7 +10,7 @@ from click.testing import CliRunner
 from hybrid_coco.cli import main
 from hybrid_coco.config import HC_DIR, SETTINGS_FILE, get_index_path
 from hybrid_coco.indexer import index_path
-from hybrid_coco.settings import SettingsError, load_settings
+from hybrid_coco.settings import SettingsError, load_or_create_settings, load_settings
 from hybrid_coco.store import Store
 
 
@@ -18,6 +18,35 @@ def _write_config(root: Path, body: str) -> None:
     hc = root / HC_DIR
     hc.mkdir(parents=True, exist_ok=True)
     (hc / SETTINGS_FILE).write_text(body, encoding="utf-8")
+
+
+def test_load_or_create_writes_then_loads(tmp_path: Path):
+    settings, created = load_or_create_settings(tmp_path)
+    assert created is True
+    assert settings.include == ()
+    assert settings.exclude == ()
+    assert dict(settings.languages) == {}
+    settings2, created2 = load_or_create_settings(tmp_path)
+    assert created2 is False
+    assert settings2.include == ()
+
+
+def test_load_or_create_does_not_overwrite_invalid(tmp_path: Path):
+    _write_config(tmp_path, "exclude = []\n")
+    with pytest.raises(SettingsError, match="missing required key"):
+        load_or_create_settings(tmp_path)
+    text = (tmp_path / HC_DIR / SETTINGS_FILE).read_text(encoding="utf-8")
+    assert "exclude = []" in text
+    assert "include" not in text
+
+
+def test_doctor_creates_missing_config(tmp_path: Path):
+    runner = CliRunner()
+    result = runner.invoke(main, ["doctor", str(tmp_path)])
+    assert (tmp_path / HC_DIR / SETTINGS_FILE).is_file()
+    assert "wrote default" in result.output
+    assert "[fail] index:" in result.output
+    assert result.exit_code == 1
 
 
 def test_load_settings_absent_fails(tmp_path: Path):

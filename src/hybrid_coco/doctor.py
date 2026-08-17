@@ -10,7 +10,7 @@ from typing import Optional
 
 from . import __version__
 from .config import HC_DIR, INDEX_FILE, SETTINGS_FILE, get_index_path
-from .settings import SettingsError, load_settings, settings_path
+from .settings import SettingsError, load_or_create_settings, settings_path
 from .store import Store
 
 _HOOK_NAMES = ("hc-pre-tool-use.sh", "hc-post-tool-use.sh")
@@ -207,17 +207,17 @@ def _check_tool_names_hint() -> DoctorCheck:
 
 def _check_project_settings(root: Path) -> DoctorCheck:
     path = settings_path(root)
-    if not path.is_file():
-        return DoctorCheck(
-            "settings",
-            False,
-            f"missing at {path} — run: hc init {root}",
-            "error",
-        )
     try:
-        settings = load_settings(root)
+        settings, created = load_or_create_settings(root)
     except SettingsError as exc:
         return DoctorCheck("settings", False, str(exc), "error")
+    if created:
+        return DoctorCheck(
+            "settings",
+            True,
+            f"wrote default {path.name} — edit include/exclude/languages as needed",
+            "ok",
+        )
     return DoctorCheck(
         "settings",
         True,

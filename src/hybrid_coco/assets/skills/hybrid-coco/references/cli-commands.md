@@ -18,7 +18,7 @@ hc reset [PATH]          Delete index DB. Flags: -f, --all (also drop project MC
 hc init [PATH]           Index + ensure .hybrid-coco/ in .gitignore + register MCP
 ```
 
-`.hybrid-coco/config.toml` is written by `hc init` / `hc index` if missing. All three keys are required:
+`.hybrid-coco/config.toml` is created automatically if missing (`hc init`, `hc index`, `hc doctor`). All three keys are required:
 
 ```
 include = []
@@ -26,7 +26,7 @@ exclude = []
 languages = {}
 ```
 
-`hc reset` keeps `config.toml`. `hc doctor` fails if the file is missing or invalid.
+Edit the file to apply include/exclude/language overrides. `hc reset` keeps `config.toml`. An existing invalid file is not overwritten.
 
 ## Index Resolution
 

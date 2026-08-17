@@ -83,6 +83,16 @@ def ensure_settings(root: Path) -> bool:
     return True
 
 
+def load_or_create_settings(root: Path) -> tuple[ProjectSettings, bool]:
+    """Create the default config if missing, then load it.
+
+    Does not overwrite an existing file, even if that file is invalid.
+    Returns (settings, created).
+    """
+    created = ensure_settings(root)
+    return load_settings(root), created
+
+
 def load_settings(root: Path) -> ProjectSettings:
     """Return project settings. The file must exist and contain every required key."""
     path = settings_path(root)
