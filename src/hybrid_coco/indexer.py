@@ -11,7 +11,8 @@ from typing import Optional, Sequence
 import pathspec
 
 from .config import ALWAYS_IGNORE, HC_DIR, ensure_index_dir
-from .parsers import detect_language, parse_file
+from .parsers import parse_file, resolve_language
+from .settings import load_settings
 from .store import Store
 
 log = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ def iter_files(
     root: Path,
     gitignore: Optional[pathspec.PathSpec],
     exclude: Optional[pathspec.PathSpec],
+    include: Optional[pathspec.PathSpec],
 ):
     """Walk the tree, yielding Path objects for indexable files."""
     for item in sorted(root.rglob("*")):
@@ -106,6 +108,8 @@ def iter_files(
         # Respect .gitignore
         if gitignore and gitignore.match_file(rel_str):
             continue
+        if include is not None and not include.match_file(rel_str):
+            continue
         if exclude and exclude.match_file(rel_str):
             continue
         yield item
@@ -118,14 +122,25 @@ def index_path(
 ) -> IndexResult:
     """Index all supported files under root (incremental unless force=True)."""
     root = root.resolve()
-    exclude_spec = build_exclude_spec(exclude)
+    settings = load_settings(root)
+    if settings is None:
+        include_patterns: Sequence[str] = ()
+        settings_exclude: Sequence[str] = ()
+        language_overrides: dict[str, str] = {}
+    else:
+        include_patterns = settings.include
+        settings_exclude = settings.exclude
+        language_overrides = dict(settings.languages)
+
+    include_spec = build_exclude_spec(include_patterns)
+    exclude_spec = build_exclude_spec(tuple(settings_exclude) + tuple(exclude))
     db_path = ensure_index_dir(root)
     store = Store(db_path)
     gitignore = _load_gitignore(root)
     result = IndexResult()
 
     try:
-        for filepath in iter_files(root, gitignore, exclude_spec):
+        for filepath in iter_files(root, gitignore, exclude_spec, include_spec):
             rel = str(filepath.relative_to(root))
             try:
                 data = filepath.read_bytes()
@@ -137,7 +152,7 @@ def index_path(
             if _is_binary(data):
                 continue
 
-            lang = detect_language(filepath)
+            lang = resolve_language(filepath, language_overrides)
             if lang is None:
                 continue  # unsupported extension — skip silently
 
@@ -152,17 +167,21 @@ def index_path(
             file_id = store.upsert_file(rel, sha, lang)
             store.delete_file_symbols(file_id)
 
-            symbols = parse_file(filepath, data)
+            symbols = parse_file(filepath, data, language_overrides)
             store.insert_symbols(file_id, symbols)
             result.indexed += 1
             log.debug("Indexed %s (%d symbols)", rel, len(symbols))
 
-        if exclude_spec is not None:
-            for row in store.all_files():
-                path = row["path"]
-                if exclude_spec.match_file(path):
-                    store.delete_file(path)
-                    result.removed += 1
+        for row in store.all_files():
+            path = row["path"]
+            drop = False
+            if include_spec is not None and not include_spec.match_file(path):
+                drop = True
+            if exclude_spec is not None and exclude_spec.match_file(path):
+                drop = True
+            if drop:
+                store.delete_file(path)
+                result.removed += 1
 
     finally:
         store.close()

@@ -250,6 +250,7 @@ def test_doctor_ok_with_index(fixture_dir: Path):
     assert "[ok] languages:" in result.output
     assert "python" in result.output
     assert "[ok] version:" in result.output
+    assert "[ok] settings:" in result.output
     assert "[hint] tool names:" in result.output
     assert "OK" in result.output
 

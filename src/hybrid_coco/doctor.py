@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Optional
 
 from . import __version__
-from .config import HC_DIR, INDEX_FILE, get_index_path
+from .config import HC_DIR, INDEX_FILE, SETTINGS_FILE, get_index_path
+from .settings import SettingsError, load_settings, settings_path
 from .store import Store
 
 _HOOK_NAMES = ("hc-pre-tool-use.sh", "hc-post-tool-use.sh")
@@ -204,6 +205,33 @@ def _check_tool_names_hint() -> DoctorCheck:
     )
 
 
+def _check_project_settings(root: Path) -> DoctorCheck:
+    path = settings_path(root)
+    if not path.is_file():
+        return DoctorCheck(
+            "settings",
+            True,
+            f"no {path.name} (zero-config)",
+            "ok",
+        )
+    try:
+        settings = load_settings(root)
+    except SettingsError as exc:
+        return DoctorCheck("settings", False, str(exc), "error")
+    if settings is None:
+        return DoctorCheck("settings", False, f"{path} disappeared during read", "error")
+    return DoctorCheck(
+        "settings",
+        True,
+        (
+            f"{path.name} — include={len(settings.include)} "
+            f"exclude={len(settings.exclude)} "
+            f"languages={len(settings.languages)}"
+        ),
+        "ok",
+    )
+
+
 def run_doctor(root: Path) -> DoctorReport:
     """Run doctor checks for project root. Index/schema failures are errors."""
     root = root.resolve()
@@ -215,6 +243,7 @@ def run_doctor(root: Path) -> DoctorReport:
         checks.append(_check_versions())
         checks.append(_check_mcp(root))
         checks.append(_check_hooks())
+        checks.append(_check_project_settings(root))
         checks.append(_check_tool_names_hint())
         return DoctorReport(checks)
 
@@ -224,6 +253,7 @@ def run_doctor(root: Path) -> DoctorReport:
     checks.append(_check_versions())
     checks.append(_check_mcp(root))
     checks.append(_check_hooks())
+    checks.append(_check_project_settings(root))
     checks.append(_check_tool_names_hint())
     return DoctorReport(checks)
 
@@ -253,8 +283,10 @@ def reset_index(root: Path, *, wipe_settings: bool) -> list[str]:
         actions.append(f"no index directory at {hc_dir}")
 
     if hc_dir.is_dir():
-        # remove empty dir leftovers (WAL/SHM companions)
+        # remove sqlite leftovers; keep project config.toml
         for leftover in hc_dir.iterdir():
+            if leftover.name == SETTINGS_FILE:
+                continue
             if leftover.is_file():
                 leftover.unlink()
                 actions.append(f"removed {leftover}")

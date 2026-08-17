@@ -4,6 +4,7 @@ from pathlib import Path
 
 HC_DIR = ".hybrid-coco"
 INDEX_FILE = "index.db"
+SETTINGS_FILE = "config.toml"
 
 ALWAYS_IGNORE = {
     ".git",

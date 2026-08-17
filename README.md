@@ -142,7 +142,26 @@ hc serve                 Start MCP server (stdio)
 hc init [PATH]           Index + .gitignore entry + register MCP + install hooks
 ```
 
-`--exclude` accepts gitignore-style patterns and may be repeated.
+`--exclude` accepts gitignore-style patterns and may be repeated. Project settings in `.hybrid-coco/config.toml` (optional) add include/exclude and language overrides; CLI `--exclude` is combined with the file's `exclude` list.
+
+## Project settings
+
+Indexing is zero-config when `.hybrid-coco/config.toml` is absent. If the file exists, it must define all three keys (`include`, `exclude`, `languages`) — missing keys fail instead of inventing defaults.
+
+```toml
+include = ["src/**"]
+exclude = ["**/generated/**"]
+
+[languages]
+".pyx" = "python"
+".h" = "cpp"
+```
+
+- `include`: gitignore-style patterns. Empty list = no include restriction. Non-empty = only matching paths are indexed.
+- `exclude`: gitignore-style patterns, merged with `hc index --exclude`.
+- `languages`: extension → parser language (`python`, `rust`, `cpp`, …). Overrides the built-in extension map.
+
+`hc reset` deletes the index database and leaves `config.toml` in place. `hc doctor` reports whether settings are absent, valid, or invalid.
 
 ## Supported languages
 

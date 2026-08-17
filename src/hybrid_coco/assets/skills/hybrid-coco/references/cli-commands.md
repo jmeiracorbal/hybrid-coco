@@ -18,6 +18,17 @@ hc reset [PATH]          Delete index DB. Flags: -f, --all (also drop project MC
 hc init [PATH]           Index + ensure .hybrid-coco/ in .gitignore + register MCP
 ```
 
+Optional `.hybrid-coco/config.toml` (all three keys required when the file exists):
+
+```
+include = ["src/**"]
+exclude = ["vendor/**"]
+[languages]
+".pyx" = "python"
+```
+
+Absent file = zero-config. `hc reset` keeps `config.toml`.
+
 ## Index Resolution
 
 - `hc query`, `hc symbol`, `hc file-context`, `hc snippet`, `hc structure`, `hc serve`: resolve from `Path.cwd()` — no PATH argument except where shown
