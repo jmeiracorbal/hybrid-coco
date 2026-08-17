@@ -19,7 +19,7 @@ Reglas para agentes que trabajan en este repositorio. Estado del producto y fase
 
 - **Roadmap:** phase status and scope live in `ROADMAP.md`; update the Status column when a phase lands
 - **Languages:** new parsers under `src/hybrid_coco/parsers/`, registry in `parsers/__init__.py`, tests in `tests/test_languages.py`, README language table
-- **Skills:** Claude Code source of truth `src/hybrid_coco/assets/skills/` — mirror to `skills/` and `plugin/skills/`. Host-adapted trees live under `src/hybrid_coco/assets/hosts/<host>/skills/`. Same skill names (`hybrid-coco`, `hc-init`, `hc-search`); bodies match that host's MCP path, native tools, and hook events. `skills_src(host)` has no fallback to Claude.
+- **Skills:** Claude Code source of truth `src/hybrid_coco/assets/skills/` — mirror to `skills/` and `plugin/skills/` with `hc sync-skills` (CI enforces `--check`). Host-adapted trees live under `src/hybrid_coco/assets/hosts/<host>/skills/`. Same skill names (`hybrid-coco`, `hc-init`, `hc-search`); bodies match that host's MCP path, native tools, and hook events. `skills_src(host)` has no fallback to Claude.
 - **Tests:** `uv run pytest` before merge
 - **PR / roadmap text:** English
 - **Commits / PRs:** project owner identity (`Jose Meira <90699520+jmeiracorbal@users.noreply.github.com>`) — not the cloud agent default author; use `--no-verify` if hooks inject co-author lines
