@@ -16,6 +16,7 @@ from .filters import (
     validate_paging,
     validate_path_filter,
 )
+from .snippet import SnippetError, read_snippet
 from .store import Store
 
 
@@ -210,6 +211,19 @@ def build_server(root: Path) -> tuple[MCPServer, Store]:
     async def hc_file_context(path: str) -> str:
         data = store.file_context(path)
         return _fmt_file_context(path, data)
+
+    @server.tool(
+        name="hc_snippet",
+        description=(
+            "Read a bounded slice of source from disk (path relative to project root). "
+            "line_start and line_end are 1-based and inclusive."
+        ),
+    )
+    async def hc_snippet(path: str, line_start: int, line_end: int) -> str:
+        try:
+            return read_snippet(root, path, line_start, line_end)
+        except SnippetError as exc:
+            return f"Error: {exc}"
 
     @server.tool(
         name="hc_status",

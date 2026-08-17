@@ -9,6 +9,8 @@ hc status [PATH]         Index stats (files, symbols by kind, last update)
 hc query <TEXT>          FTS5 search. Flags: --path, --lang (repeatable), --offset, --limit
 hc symbol <NAME>         Lookup by name (exact, then prefix). Same filter flags as query
 hc file-context <PATH>   All symbols in PATH (relative to cwd). ~97% savings vs cat
+hc snippet <PATH> <START> <END>
+                         Read PATH lines START..END from disk (1-based, inclusive)
 hc serve                 Start MCP server (stdio)
 hc doctor [PATH]         Diagnostics (index/schema/languages/MCP/hooks/versions)
 hc reset [PATH]          Delete index DB. Flags: -f, --all (also drop project MCP entry)
@@ -17,7 +19,7 @@ hc init [PATH]           Index + ensure .hybrid-coco/ in .gitignore + register M
 
 ## Index Resolution
 
-- `hc query`, `hc symbol`, `hc file-context`, `hc serve`: resolve index from `Path.cwd()` — no PATH argument accepted
+- `hc query`, `hc symbol`, `hc file-context`, `hc snippet`, `hc serve`: resolve from `Path.cwd()` — no PATH argument except where shown
 - `hc index`, `hc update`, `hc status`: accept optional PATH argument (default: cwd)
 
 Always run `hc query` and `hc symbol` from inside the indexed project root.
@@ -66,6 +68,18 @@ Functions (18):
   record @ 343  pub fn record(...) -> Result<()>
   ...
 ```
+
+### `hc snippet <PATH> <START> <END>`
+
+```
+File: src/git.rs:45-67 (23 lines)
+
+pub fn run(args: GitArgs) -> Result<()> {
+    ...
+}
+```
+
+Errors exit non-zero: missing file, empty file, or line range out of bounds.
 
 ## Notes
 

@@ -42,8 +42,8 @@ Source files  ──tree-sitter──►  SQLite + FTS5  ──►  CLI (hc)
 ```
 
 1. **`hc index .`**: parses every source file with tree-sitter, extracts symbols (functions, classes, methods, imports) with their signatures, docstrings, and line numbers into a FTS5 trigram index
-2. **`hc query / symbol / file-context`**: queries the index and returns only what's relevant, not the whole file
-3. **`hc serve`**: exposes the same queries as MCP tools (`hc_search`, `hc_symbol`, `hc_file_context`, `hc_status`) for Claude Code
+2. **`hc query / symbol / file-context / snippet`**: queries the index and returns structure or bounded source slices — not whole files
+3. **`hc serve`**: exposes the same queries as MCP tools (`hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_status`) for Claude Code
 4. **Hooks**: `hc init` registers PreToolUse/PostToolUse hooks that suggest `hc_*` tools whenever Claude is about to `Read` or `Grep` an indexed file
 
 ## Benchmark
@@ -107,7 +107,8 @@ The MCP tools are now available in every conversation:
 
 ```
 hc_search("savings_pct")       # FTS5 search over names, signatures, docstrings
-hc_symbol("TimedExecution")    # exact/prefix symbol lookup
+hc_symbol("TimedExecution")    # exact/prefix symbol lookup → line range
+hc_snippet("src/git.rs", 45, 67)  # bounded source slice from disk
 hc_file_context("src/git.rs")  # all symbols in a file, structured
 hc_status()                    # index stats
 ```
@@ -129,6 +130,8 @@ hc query <TEXT> [--path P] [--lang L]... [--offset N] [--limit N]
 hc symbol <NAME> [--path P] [--lang L]... [--offset N] [--limit N]
                          Exact name lookup, then prefix; same filters as query
 hc file-context <PATH>   All symbols in PATH grouped by kind (~97% savings vs cat)
+hc snippet <PATH> <START> <END>
+                         Read PATH lines START..END from disk (1-based, inclusive)
 hc doctor [PATH]         Diagnostics: index, schema, languages, MCP/hooks, versions
 hc reset [PATH] [-f] [--all]
                          Delete index DB; --all also drops project MCP entry
