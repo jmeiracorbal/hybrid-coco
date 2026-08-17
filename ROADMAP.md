@@ -22,11 +22,11 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Indexer | Incremental SHA-256 walk, gitignore-aware, `.hybrid-coco/config.toml` + CLI `--exclude` |
 | Store | SQLite files + symbols + FTS5 trigram |
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
-| CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init`, `hook` |
+| CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init`, `hook`, `install-instructions` |
 | MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status` (path/lang/offset/limit on search, symbol & structure) |
 | Hosts | Claude Code (default); Cursor; Codex; OpenCode; Devin |
 | Skills | Host-adapted `hybrid-coco` / `hc-init` / `hc-search` (same names; bodies match MCP/hooks/native tools) |
-| Awareness | Project-local mnemo layout: marker `.hybrid-coco/project.json`, protocol `.hybrid-coco/hybrid-coco.md`, short managed sections in project `AGENTS.md` + `CLAUDE.md` (`@AGENTS.md`), or `.cursor/rules/hybrid-coco.mdc`. Never `~/.claude/CLAUDE.md` or user-global `AGENTS.md` |
+| Awareness | mnemo split: short conditional gate in user-global instruction files (`~/.claude/CLAUDE.md`, `~/.cursor/rules/hybrid-coco.mdc`, `~/.codex/AGENTS.md`, …). `hc init` writes `.hybrid-coco/project.json` (`id` required) + protocol `.hybrid-coco/hybrid-coco.md`. No project `AGENTS.md` / `CLAUDE.md`. Hooks no-op without a valid marker `id` |
 | Hooks | Host-native intercept of Read/Grep (or equivalent) → `hc_*`; write/edit → `hc update`; session start incremental update where the host has the event |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 

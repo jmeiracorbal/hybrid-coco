@@ -16,6 +16,7 @@ from hybrid_coco.hosts.codex import CodexHost
 from hybrid_coco.hosts.cursor import CursorHost
 from hybrid_coco.hosts.devin import DevinHost
 from hybrid_coco.hosts.opencode import OpenCodeHost
+from hybrid_coco.hosts.marker import add_agent, project_id_from_path
 from hybrid_coco.indexer import index_path
 
 
@@ -38,6 +39,17 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     home.mkdir()
     monkeypatch.setattr(Path, "home", lambda: home)
     return home
+
+
+def _index_and_activate(project: Path) -> None:
+    index_path(project)
+    add_agent(project, "claude")
+
+
+def _assert_no_project_instruction_files(root: Path) -> None:
+    assert not (root / "AGENTS.md").exists()
+    assert not (root / "CLAUDE.md").exists()
+    assert not (root / ".cursor" / "rules" / "hybrid-coco.mdc").exists()
 
 
 def _assert_skills_match_host(dest: Path, host: str) -> None:
@@ -79,19 +91,17 @@ def test_claude_install_writes_skills_and_mcp(tmp_path: Path):
     global_settings = json.loads((home / ".claude" / "settings.json").read_text(encoding="utf-8"))
     matchers = [e["matcher"] for e in global_settings["hooks"]["PreToolUse"]]
     assert "Read|Grep" in matchers
-    assert not (home / ".claude" / "CLAUDE.md").exists()
+    global_md = (home / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "<!-- hybrid-coco:start -->" in global_md
+    assert "hc_*" in global_md
+    assert "Decision tree" not in global_md
     assert not (home / ".claude" / "hybrid-coco.md").exists()
+    _assert_no_project_instruction_files(root)
     awareness = (root / ".hybrid-coco" / "hybrid-coco.md").read_text(encoding="utf-8")
     assert "hc_file_context" in awareness
-    claude_md = (root / "CLAUDE.md").read_text(encoding="utf-8")
-    agents_md = (root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "@AGENTS.md" in claude_md
-    assert "<!-- hybrid-coco:claude-start -->" in claude_md
-    assert "<!-- hybrid-coco:start -->" in agents_md
-    assert "Decision tree" not in claude_md
-    assert "Decision tree" not in agents_md
     marker = json.loads((root / ".hybrid-coco" / "project.json").read_text(encoding="utf-8"))
     assert marker["agents"] == ["claude"]
+    assert marker["id"] == project_id_from_path(root.resolve())
 
 
 def test_claude_install_strips_legacy_global_claude_include(tmp_path: Path):
@@ -107,9 +117,9 @@ def test_claude_install_strips_legacy_global_claude_include(tmp_path: Path):
     leftover = (claude_dir / "CLAUDE.md").read_text(encoding="utf-8")
     assert "User notes" in leftover
     assert "@hybrid-coco.md" not in leftover
-    project_md = (root / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "@AGENTS.md" in project_md
-    assert "<!-- hybrid-coco:claude-start -->" in project_md
+    assert "<!-- hybrid-coco:start -->" in leftover
+    assert "Decision tree" not in leftover
+    _assert_no_project_instruction_files(root)
 
 
 def test_cursor_install_matches_packaged_skills(tmp_path: Path):
@@ -140,13 +150,11 @@ def test_cursor_install_matches_packaged_skills(tmp_path: Path):
 
     for dest in (home / ".cursor" / "skills", root / ".cursor" / "skills"):
         _assert_skills_match_host(dest, "cursor")
-    rule = (root / ".cursor" / "rules" / "hybrid-coco.mdc").read_text(encoding="utf-8")
+    rule = (home / ".cursor" / "rules" / "hybrid-coco.mdc").read_text(encoding="utf-8")
     assert "alwaysApply: true" in rule
     assert "hc_*" in rule
     assert "Decision tree" not in rule
-    assert not (home / ".cursor" / "rules" / "hybrid-coco.mdc").exists()
-    assert not (root / "CLAUDE.md").exists()
-    assert not (root / "AGENTS.md").exists()
+    _assert_no_project_instruction_files(root)
 
     # idempotent
     CursorHost().install(root, global_config=False, home=home)
@@ -180,6 +188,8 @@ def test_init_host_cursor(project: Path, tmp_path: Path, monkeypatch: pytest.Mon
     assert (project / ".cursor" / "mcp.json").is_file()
     assert not (project / ".claude" / "settings.json").exists()
     assert (home / ".cursor" / "skills" / "hybrid-coco" / "SKILL.md").is_file()
+    assert (home / ".cursor" / "rules" / "hybrid-coco.mdc").is_file()
+    _assert_no_project_instruction_files(project)
 
 
 def test_init_default_is_claude_only(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -189,9 +199,14 @@ def test_init_default_is_claude_only(project: Path, tmp_path: Path, monkeypatch:
     assert result.exit_code == 0, result.output
     assert (project / ".claude" / "settings.json").is_file()
     assert not (project / ".cursor" / "mcp.json").exists()
-    assert (project / "CLAUDE.md").is_file()
-    assert (project / "AGENTS.md").is_file()
-    assert "@AGENTS.md" in (project / "CLAUDE.md").read_text(encoding="utf-8")
+    _assert_no_project_instruction_files(project)
+    home = tmp_path / "home"
+    global_md = (home / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "<!-- hybrid-coco:start -->" in global_md
+    assert "Decision tree" not in global_md
+    marker = json.loads((project / ".hybrid-coco" / "project.json").read_text(encoding="utf-8"))
+    assert marker["id"]
+    assert marker["agents"] == ["claude"]
 
 
 def test_init_host_all(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -204,13 +219,10 @@ def test_init_host_all(project: Path, tmp_path: Path, monkeypatch: pytest.Monkey
     assert (project / ".codex" / "config.toml").is_file()
     assert (project / "opencode.json").is_file()
     assert (project / ".devin" / "mcp_config.json").is_file()
-    assert (project / "CLAUDE.md").is_file()
-    assert (project / "AGENTS.md").is_file()
-    assert (project / ".cursor" / "rules" / "hybrid-coco.mdc").is_file()
-    assert "@AGENTS.md" in (project / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "<!-- hybrid-coco:start -->" in (project / "AGENTS.md").read_text(encoding="utf-8")
+    _assert_no_project_instruction_files(project)
     marker = json.loads((project / ".hybrid-coco" / "project.json").read_text(encoding="utf-8"))
     assert set(marker["agents"]) == {"claude", "cursor", "codex", "opencode", "devin"}
+    assert marker["id"]
 
 
 def test_init_unknown_host_fails(project: Path):
@@ -220,8 +232,21 @@ def test_init_unknown_host_fails(project: Path):
     assert "unknown host" in _out(result)
 
 
-def test_cursor_hook_blocks_read(project: Path, monkeypatch: pytest.MonkeyPatch):
+def test_hook_does_not_block_without_marker(project: Path, monkeypatch: pytest.MonkeyPatch):
     index_path(project)
+    monkeypatch.chdir(project)
+    payload = json.dumps({
+        "tool_name": "Read",
+        "tool_input": {"path": str(project / "src" / "sample.py")},
+    })
+    runner = CliRunner()
+    result = runner.invoke(main, ["hook", "cursor", "pre-tool-use"], input=payload)
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == ""
+
+
+def test_cursor_hook_blocks_read(project: Path, monkeypatch: pytest.MonkeyPatch):
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({
         "tool_name": "Read",
@@ -237,7 +262,7 @@ def test_cursor_hook_blocks_read(project: Path, monkeypatch: pytest.MonkeyPatch)
 
 
 def test_cursor_hook_blocks_grep(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({
         "tool_name": "Grep",
@@ -253,7 +278,7 @@ def test_cursor_hook_blocks_grep(project: Path, monkeypatch: pytest.MonkeyPatch)
 
 
 def test_cursor_before_read_file(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({"file_path": str(project / "src" / "sample.py")})
     runner = CliRunner()
@@ -265,7 +290,7 @@ def test_cursor_before_read_file(project: Path, monkeypatch: pytest.MonkeyPatch)
 
 
 def test_cursor_hook_passes_unindexed_file(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({
         "tool_name": "Read",
@@ -278,7 +303,7 @@ def test_cursor_hook_passes_unindexed_file(project: Path, monkeypatch: pytest.Mo
 
 
 def test_claude_hook_block_shape(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({
         "tool_name": "Read",
@@ -301,7 +326,7 @@ def test_hook_unknown_host_fails():
 
 def test_reset_all_removes_cursor_mcp(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     _home(monkeypatch, tmp_path)
-    index_path(project)
+    _index_and_activate(project)
     CursorHost().install(project, global_config=False, home=tmp_path / "home")
     settings = project / ".claude" / "settings.json"
     settings.parent.mkdir(parents=True)
@@ -343,13 +368,13 @@ def test_codex_install_writes_toml_hooks_skills(tmp_path: Path):
     )
     for dest in (home / ".agents" / "skills", root / ".agents" / "skills"):
         _assert_skills_match_host(dest, "codex")
-    agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+    agents = (home / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
     assert "<!-- hybrid-coco:start -->" in agents
     assert "hc_*" in agents
     assert "Decision tree" not in agents
-    assert not (home / ".codex" / "AGENTS.md").exists()
+    _assert_no_project_instruction_files(root)
     CodexHost().install(root, global_config=False, home=home)
-    assert (root / "AGENTS.md").read_text(encoding="utf-8").count("<!-- hybrid-coco:start -->") == 1
+    assert (home / ".codex" / "AGENTS.md").read_text(encoding="utf-8").count("<!-- hybrid-coco:start -->") == 1
     hooks2 = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
     commands = [
         h.get("command")
@@ -370,7 +395,7 @@ def test_init_host_codex(project: Path, tmp_path: Path, monkeypatch: pytest.Monk
 
 
 def test_codex_hook_blocks_bash_cat(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({
         "tool_name": "Bash",
@@ -386,7 +411,7 @@ def test_codex_hook_blocks_bash_cat(project: Path, monkeypatch: pytest.MonkeyPat
 
 
 def test_codex_session_start_injects_context(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     runner = CliRunner()
     result = runner.invoke(main, ["hook", "codex", "session-start"], input="{}")
@@ -419,8 +444,13 @@ def test_opencode_install_plugin_mcp_skills(tmp_path: Path):
         root / ".opencode" / "skills",
     ):
         _assert_skills_match_host(dest, "opencode")
-    assert "<!-- hybrid-coco:start -->" in (root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "Decision tree" not in (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "<!-- hybrid-coco:start -->" in (home / ".config" / "opencode" / "AGENTS.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Decision tree" not in (home / ".config" / "opencode" / "AGENTS.md").read_text(
+        encoding="utf-8"
+    )
+    _assert_no_project_instruction_files(root)
 
 
 def test_init_host_opencode(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -434,7 +464,7 @@ def test_init_host_opencode(project: Path, tmp_path: Path, monkeypatch: pytest.M
 
 
 def test_opencode_hook_blocks_read_filepath(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({
         "tool_name": "read",
@@ -450,7 +480,7 @@ def test_opencode_hook_blocks_read_filepath(project: Path, monkeypatch: pytest.M
 
 
 def test_opencode_hook_ignores_claude_file_path_key(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({
         "tool_name": "read",
@@ -481,7 +511,10 @@ def test_devin_install_mcp_hooks_skills(tmp_path: Path):
     )
     for dest in (home / ".config" / "devin" / "skills", root / ".devin" / "skills"):
         _assert_skills_match_host(dest, "devin")
-    assert "<!-- hybrid-coco:start -->" in (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "<!-- hybrid-coco:start -->" in (home / ".config" / "devin" / "AGENTS.md").read_text(
+        encoding="utf-8"
+    )
+    _assert_no_project_instruction_files(root)
     DevinHost().install(root, global_config=False, home=home)
     hooks2 = json.loads((root / ".devin" / "hooks.v1.json").read_text(encoding="utf-8"))
     commands = [
@@ -503,7 +536,7 @@ def test_init_host_devin(project: Path, tmp_path: Path, monkeypatch: pytest.Monk
 
 
 def test_devin_hook_blocks_lowercase_read(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({
         "tool_name": "read",
@@ -519,7 +552,7 @@ def test_devin_hook_blocks_lowercase_read(project: Path, monkeypatch: pytest.Mon
 
 
 def test_devin_hook_blocks_grep(project: Path, monkeypatch: pytest.MonkeyPatch):
-    index_path(project)
+    _index_and_activate(project)
     monkeypatch.chdir(project)
     payload = json.dumps({
         "tool_name": "grep",

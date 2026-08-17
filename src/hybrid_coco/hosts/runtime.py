@@ -14,6 +14,7 @@ from ..indexer import index_path
 from ..settings import SettingsError
 from ..snippet import SnippetError, read_snippet
 from ..store import Store
+from .marker import marker_is_active
 
 _GREP_META = re.compile(r"[.^$*+?{}\[\]\\|()]")
 _SHELL_CAT = re.compile(r"^(?:cat|bat)\s+(\S+)$")
@@ -48,9 +49,14 @@ class HookResult:
 
 
 def find_index_root(start: Path) -> Path | None:
+    """walk up until both the index and a valid project marker exist.
+
+    same gate as mnemo: missing/malformed marker or empty id → inactive.
+    an index without `hc init` (no `project.json` id) does not activate hooks.
+    """
     current = start.resolve()
     while True:
-        if (current / ".hybrid-coco" / "index.db").is_file():
+        if (current / ".hybrid-coco" / "index.db").is_file() and marker_is_active(current):
             return current
         parent = current.parent
         if parent == current:
@@ -370,11 +376,14 @@ def run_hook(host: str, event: str, raw: str, cwd: Path) -> int:
     if event not in host_obj.events:
         print(f"Error: host {host} does not support event {event}", file=sys.stderr)
         return 1
-    try:
-        payload = read_payload(raw)
-    except ValueError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 0
+    if event == "session-start" and not raw.strip():
+        payload = {}
+    else:
+        try:
+            payload = read_payload(raw)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 0
     try:
         output = dispatch(host, event, payload, cwd)
     except ValueError as exc:

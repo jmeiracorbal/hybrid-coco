@@ -1,4 +1,4 @@
-"""mnemo-style project instruction install: shared AGENTS.md + Claude @AGENTS.md."""
+"""mnemo-style install: global short gate; project init only writes the marker."""
 
 from __future__ import annotations
 
@@ -9,42 +9,33 @@ from .marker import add_agent
 
 SECTION_START = "<!-- hybrid-coco:start -->"
 SECTION_END = "<!-- hybrid-coco:end -->"
-CLAUDE_SECTION_START = "<!-- hybrid-coco:claude-start -->"
-CLAUDE_SECTION_END = "<!-- hybrid-coco:claude-end -->"
-AGENTS_PRELUDE = "@AGENTS.md"
 AWARENESS_REL = Path(".hybrid-coco") / "hybrid-coco.md"
 LEGACY_GLOBAL_INCLUDE = "@hybrid-coco.md"
 
-# shared gate for AGENTS.md — short, not the decision-tree protocol.
-AGENTS_BODY = (
+# same shape as mnemo templates/rules/global.md — conditional on the marker.
+GLOBAL_BODY = (
     "## hybrid-coco\n"
     "\n"
-    "This project is indexed with hybrid-coco when `.hybrid-coco/index.db` exists. "
-    "Prefer `hc_*` MCP tools over native Read/Grep (or the host equivalent).\n"
+    "In repositories initialized with hybrid-coco (a valid "
+    "`.hybrid-coco/project.json` with a non-empty `id` exists at the project "
+    "root), prefer `hc_*` MCP tools over native Read/Grep (or the host equivalent).\n"
     "\n"
-    "When the index exists: `hc_symbol`, `hc_search`, `hc_file_context`, "
-    "`hc_snippet`, `hc_structure`, `hc_status`. "
-    "Skills: `hybrid-coco`, `/hc-init`, `/hc-search`. "
-    f"Full protocol: `{AWARENESS_REL.as_posix()}`.\n"
+    "When the marker is valid:\n"
+    "- Use `hc_symbol`, `hc_search`, `hc_file_context`, `hc_snippet`, "
+    "`hc_structure`, `hc_status`\n"
+    "- Load the `hybrid-coco` skill when it is available (`/hc-init`, `/hc-search`)\n"
+    "- After a hit, read bodies with `hc_snippet` — not the whole file\n"
     "\n"
-    "If the index is missing, skip hybrid-coco or run `hc init`.\n"
+    "If the marker is missing, malformed, or has no `id`, skip hybrid-coco "
+    "entirely for that project.\n"
 )
 
-# Claude-only extras. shared rules live in AGENTS.md (mnemo claudecode.md split).
-CLAUDE_BODY = (
-    "### hybrid-coco\n"
-    "\n"
-    "Prefer `hc_*` MCP tools over Claude Code `Read`/`Grep` when "
-    "`.hybrid-coco/index.db` exists. Shared protocol: `AGENTS.md`. "
-    f"Full details: `{AWARENESS_REL.as_posix()}`.\n"
-)
-
-CURSOR_RULE = (
+CURSOR_GLOBAL_RULE = (
     "---\n"
-    "description: Prefer hybrid-coco hc_* tools when this project is indexed\n"
+    "description: Prefer hybrid-coco hc_* tools in initialized projects\n"
     "alwaysApply: true\n"
     "---\n\n"
-    f"{AGENTS_BODY}"
+    f"{GLOBAL_BODY}"
 )
 
 
@@ -58,14 +49,7 @@ def write_project_awareness(root: Path) -> Path:
     return dst
 
 
-def upsert_managed_section(
-    *,
-    path: Path,
-    start: str,
-    end: str,
-    content: str,
-    prelude: str,
-) -> bool:
+def upsert_managed_section(*, path: Path, start: str, end: str, content: str) -> bool:
     if not start:
         raise ValueError("start marker is empty")
     if not end:
@@ -97,23 +81,13 @@ def upsert_managed_section(
         finish += len(end)
         updated = existing[:begin] + block + existing[finish:]
     else:
-        addition = block
-        if prelude != "" and not _contains_line(existing, prelude):
-            addition = prelude + "\n\n" + addition
-        updated = _append_section(existing, addition)
+        updated = _append_section(existing, block)
 
     if updated == existing:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(updated, encoding="utf-8")
     return True
-
-
-def _contains_line(content: str, target: str) -> bool:
-    for line in content.split("\n"):
-        if line.strip() == target:
-            return True
-    return False
 
 
 def _append_section(existing: str, addition: str) -> str:
@@ -126,31 +100,33 @@ def _append_section(existing: str, addition: str) -> str:
     return existing + "\n\n" + addition + "\n"
 
 
-def install_agents_pointer(root: Path) -> bool:
-    return upsert_managed_section(
-        path=root / "AGENTS.md",
+def global_instruction_path(home: Path, host: str) -> Path:
+    if host == "claude":
+        return home / ".claude" / "CLAUDE.md"
+    if host == "cursor":
+        return home / ".cursor" / "rules" / "hybrid-coco.mdc"
+    if host == "codex":
+        return home / ".codex" / "AGENTS.md"
+    if host == "opencode":
+        return home / ".config" / "opencode" / "AGENTS.md"
+    if host == "devin":
+        return home / ".config" / "devin" / "AGENTS.md"
+    raise ValueError(f"unknown host: {host}")
+
+
+def install_global_instructions(*, home: Path, host: str) -> Path:
+    path = global_instruction_path(home, host)
+    if host == "cursor":
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(CURSOR_GLOBAL_RULE, encoding="utf-8")
+        return path
+    upsert_managed_section(
+        path=path,
         start=SECTION_START,
         end=SECTION_END,
-        content=AGENTS_BODY,
-        prelude="",
+        content=GLOBAL_BODY,
     )
-
-
-def install_claude_pointer(root: Path) -> bool:
-    install_agents_pointer(root)
-    return upsert_managed_section(
-        path=root / "CLAUDE.md",
-        start=CLAUDE_SECTION_START,
-        end=CLAUDE_SECTION_END,
-        content=CLAUDE_BODY,
-        prelude=AGENTS_PRELUDE,
-    )
-
-
-def install_cursor_rule(root: Path) -> None:
-    path = root / ".cursor" / "rules" / "hybrid-coco.mdc"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(CURSOR_RULE, encoding="utf-8")
+    return path
 
 
 def strip_legacy_global_claude_include(home: Path) -> list[str]:
@@ -189,17 +165,6 @@ def apply_project_instructions(*, root: Path, host: str, home: Path) -> list[str
     add_agent(root, host)
     lines.append(f"project marker: agent {host}")
     lines.extend(strip_legacy_global_claude_include(home))
-
-    if host == "claude":
-        install_claude_pointer(root)
-        lines.append("project AGENTS.md + CLAUDE.md: hybrid-coco managed sections")
-        return lines
-    if host == "cursor":
-        install_cursor_rule(root)
-        lines.append("project .cursor/rules/hybrid-coco.mdc written")
-        return lines
-    if host in {"codex", "opencode", "devin"}:
-        install_agents_pointer(root)
-        lines.append("project AGENTS.md: hybrid-coco pointer (managed section)")
-        return lines
-    raise ValueError(f"unknown host: {host}")
+    dest = install_global_instructions(home=home, host=host)
+    lines.append(f"global instructions: {dest}")
+    return lines

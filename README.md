@@ -101,10 +101,10 @@ hc init --host all      # every supported host
 
 `hc init` does five things:
 - Indexes the current directory (tree-sitter, SHA-256 incremental)
-- Registers the MCP server in the host project config
+- Registers the MCP server in the host **project** config
 - Installs host-native hooks that intercept `Read` and `Grep` (or the host's equivalent)
 - Installs host-adapted agent skills (`hybrid-coco`, `hc-init`, `hc-search`) — same names, host-specific MCP paths, native tools, and hook events
-- Activates the project the same way mnemo does: a marker (`.hybrid-coco/project.json`), the full protocol in `.hybrid-coco/hybrid-coco.md`, and a **short managed section** in project instruction files. It does **not** append to `~/.claude/CLAUDE.md` or any user-global `AGENTS.md`
+- Activates the project the same way mnemo does: writes `.hybrid-coco/project.json` (`version`, deterministic `id`, `agents`) and copies the full protocol to `.hybrid-coco/hybrid-coco.md`. It does **not** append to project `AGENTS.md` / `CLAUDE.md`. The short conditional protocol lives in user-global instruction files (`hc install-instructions`, also run by `hc init` so `pip install hybrid-coco && hc init` is enough)
 
 Restart the agent host to activate.
 
@@ -137,17 +137,23 @@ The hooks will remind the agent (via the host's hook protocol) whenever it is ab
 
 Skills keep the same names on every host (`hybrid-coco`, `hc-init`, `hc-search`) so `/hc-init` and `/hc-search` still work. The `SKILL.md` body is host-adapted: MCP path, native tools to avoid, and only the hook events that host actually fires. Hooks never invent events a host does not support.
 
-Instruction files follow the mnemo project layout:
+Instruction files follow the same split as mnemo: install globally, activate per project.
 
 ```
+# global (once — install.sh / hc install-instructions / hc init)
+~/.claude/CLAUDE.md                         ← short <!-- hybrid-coco:start --> gate
+~/.cursor/rules/hybrid-coco.mdc             ← alwaysApply: true, same gate
+~/.codex/AGENTS.md
+~/.config/opencode/AGENTS.md
+~/.config/devin/AGENTS.md
+
+# project (`hc init`)
 project/
 ├── .hybrid-coco/hybrid-coco.md   ← full protocol (gitignored with the index)
-├── .hybrid-coco/project.json     ← activated agents (like mnemo's `.mnemo`)
-├── AGENTS.md                     ← short `<!-- hybrid-coco:start -->` block
-└── CLAUDE.md                     ← @AGENTS.md + `<!-- hybrid-coco:claude-start -->`
+└── .hybrid-coco/project.json     ← {version, id, agents} — like mnemo's `.mnemo`
 ```
 
-Cursor gets `.cursor/rules/hybrid-coco.mdc` instead of `CLAUDE.md`. Existing user content outside the markers is preserved. Re-running `hc init` refreshes the managed block without duplicating it.
+The global text is conditional: if `.hybrid-coco/project.json` is missing, malformed, or has no `id`, skip hybrid-coco entirely. Hooks use the same gate. `hc init` does not write project `AGENTS.md`, `CLAUDE.md`, or `.cursor/rules/hybrid-coco.mdc`. Re-running `hc install-instructions` refreshes the managed block without duplicating it.
 
 ## CLI reference
 
@@ -171,8 +177,11 @@ hc reset [PATH] [-f] [--all]
                          Delete index DB; --all also drops project MCP entries
 hc serve                 Start MCP server (stdio)
 hc hook <HOST> <EVENT>   Host lifecycle hook (JSON stdin/stdout)
+hc install-instructions [--host NAME]...
+                         Short conditional protocol in user-global instruction files
+                         --host: claude (default), cursor, codex, opencode, devin, all
 hc init [PATH] [--host NAME]...
-                         Index + .gitignore + register MCP/hooks/skills
+                         Index + marker + .gitignore + register MCP/hooks/skills
                          --host: claude (default), cursor, codex, opencode, devin, all
 ```
 

@@ -164,31 +164,27 @@ else:
     print("[hybrid-coco] settings.json already configured — no changes needed")
 PYEOF
 
-# ── 6. Strip legacy ~/.claude/CLAUDE.md include ──────────────────────────────
-# Instructions are project-local after `hc init`. Do not append to the user
-# global CLAUDE.md / AGENTS.md.
-info "Removing legacy global @hybrid-coco.md include if present..."
-"$PYTHON" - << PYEOF
+# ── 6. Global short instruction gate (mnemo-style) ───────────────────────────
+# Strips the old @hybrid-coco.md dump, then writes a short conditional section
+# to ~/.claude/CLAUDE.md. It only activates in projects with a valid marker.
+info "Installing global Claude Code instructions..."
+if command -v hc &>/dev/null; then
+  hc install-instructions --host claude
+else
+  "$PYTHON" - << PYEOF
 from pathlib import Path
+from hybrid_coco.hosts.instructions import (
+    install_global_instructions,
+    strip_legacy_global_claude_include,
+)
 
 home = Path.home()
-awareness = home / ".claude" / "hybrid-coco.md"
-if awareness.is_file():
-    awareness.unlink()
-    print("[hybrid-coco] removed ~/.claude/hybrid-coco.md")
-
-claude_md = home / ".claude" / "CLAUDE.md"
-if claude_md.is_file():
-    text = claude_md.read_text(encoding="utf-8")
-    kept = [line for line in text.splitlines(keepends=True) if line.strip() != "@hybrid-coco.md"]
-    updated = "".join(kept)
-    if updated != text:
-        if not updated.strip():
-            claude_md.unlink()
-        else:
-            claude_md.write_text(updated, encoding="utf-8")
-        print("[hybrid-coco] removed @hybrid-coco.md from ~/.claude/CLAUDE.md")
+for line in strip_legacy_global_claude_include(home):
+    print(f"[hybrid-coco] {line}")
+dest = install_global_instructions(home=home, host="claude")
+print(f"[hybrid-coco] global instructions: {dest}")
 PYEOF
+fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
@@ -197,7 +193,7 @@ echo ""
 echo "  Next steps:"
 echo "  hybrid-coco is self-contained: index, CLI, MCP, hooks, and skills."
 echo "  1. Restart Claude Code (or reload the window)"
-echo "  2. In any project: hc init   # index + project instruction pointer"
+echo "  2. In any project: hc init   # index + project marker (.hybrid-coco/project.json)"
 echo "  3. Use hc_* tools for code navigation"
 echo "  4. Skills: hybrid-coco, /hc-init, /hc-search"
 echo ""
