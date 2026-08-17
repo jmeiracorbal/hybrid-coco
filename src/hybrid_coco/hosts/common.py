@@ -9,6 +9,8 @@ from typing import Any
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 
+HOST_NAMES: tuple[str, ...] = ("claude", "cursor", "codex", "opencode", "devin")
+
 MCP_COMMAND = "hc"
 MCP_ARGS = ["serve"]
 MCP_ENTRY = {
@@ -80,6 +82,8 @@ def mcp_registered_json(path: Path, *, servers_key: str = "mcpServers") -> bool:
 
 
 def skills_src(host: str) -> Path:
+    if host not in HOST_NAMES:
+        raise ValueError(f"unknown host: {host}")
     roots = {
         "claude": ASSETS_DIR / "skills",
         "cursor": ASSETS_DIR / "hosts" / "cursor" / "skills",
@@ -87,8 +91,6 @@ def skills_src(host: str) -> Path:
         "opencode": ASSETS_DIR / "hosts" / "opencode" / "skills",
         "devin": ASSETS_DIR / "hosts" / "devin" / "skills",
     }
-    if host not in roots:
-        raise ValueError(f"unknown host: {host}")
     src = roots[host]
     if not src.is_dir():
         raise FileNotFoundError(f"packaged skills missing for host {host}: {src}")

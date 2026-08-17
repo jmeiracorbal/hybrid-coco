@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .common import HOST_NAMES
 from .claude import ClaudeHost
 from .codex import CodexHost
 from .cursor import CursorHost
@@ -18,6 +19,9 @@ _HOSTS = {
     "opencode": OpenCodeHost(),
     "devin": DevinHost(),
 }
+
+if tuple(_HOSTS.keys()) != HOST_NAMES:
+    raise RuntimeError("HOST_NAMES and _HOSTS registry are out of sync")
 
 HOST_NAMES = tuple(_HOSTS.keys())
 

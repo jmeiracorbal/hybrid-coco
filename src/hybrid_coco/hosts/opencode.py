@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .common import ASSETS_DIR, MCP_TOOLS, copy_skills, load_json_object, skills_src, write_json
+from .base import HostInstaller, install_skills_to_targets, mcp_registration_lines
+from .common import ASSETS_DIR, load_json_object, write_json
 from .instructions import apply_project_instructions
 from .types import HostResult
 
@@ -63,19 +64,16 @@ def _install_plugin(dst: Path) -> None:
     dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
 
 
-class OpenCodeHost:
+class OpenCodeHost(HostInstaller):
     name = "opencode"
     title = "OpenCode"
     events = ("pre-tool-use", "post-tool-use")
 
     def install(self, root: Path, *, global_config: bool, home: Path) -> HostResult:
-        lines: list[str] = []
         cfg = _config_file(root, global_config=global_config, home=home)
         _merge_mcp(cfg)
         label = str(cfg) if global_config else "opencode.json"
-        lines.append(f"MCP server registered in {label}")
-        for tool in MCP_TOOLS:
-            lines.append(tool)
+        lines = mcp_registration_lines(label)
 
         plugin = _plugin_file(root, global_config=global_config, home=home)
         _install_plugin(plugin)
@@ -84,17 +82,11 @@ class OpenCodeHost:
         lines.append("tool.execute.after: write/edit → hc update")
         lines.extend(apply_project_instructions(root=root, host=self.name))
 
-        skill_targets = [home / ".config" / "opencode" / "skills"]
+        targets = [(home / ".config" / "opencode" / "skills", home / ".config" / "opencode" / "skills")]
         if not global_config:
-            skill_targets.append(root / ".opencode" / "skills")
-        skills: list[str] = []
-        for dst in skill_targets:
-            skills = copy_skills(dst, skills_src(self.name))
-            rel: Path | str = dst
-            if not global_config and dst == root / ".opencode" / "skills":
-                rel = Path(".opencode/skills")
-            lines.append(f"skills installed in {rel}: {', '.join(skills)}")
-
+            targets.append((root / ".opencode" / "skills", Path(".opencode/skills")))
+        skills, skill_lines = install_skills_to_targets(targets, self.name)
+        lines.extend(skill_lines)
         return HostResult(name=self.name, title=self.title, lines=lines, skills=skills)
 
     def mcp_registered(self, root: Path, *, home: Path) -> bool:
