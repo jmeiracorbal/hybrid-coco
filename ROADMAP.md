@@ -142,6 +142,6 @@ Only after FTS5 + tree-sitter path is complete. Candidate: optional `sqlite-vec`
 ## Working agreement
 
 - Architect (human) prioritizes and accepts phase exit criteria
-- Orchestrator updates this file’s phase **Status** column and Engram after each phase decision
+- Update this file’s phase **Status** column when a phase lands
 - PR descriptions and roadmap text: English
 - Commits / PRs: project owner identity — never the cloud agent default author

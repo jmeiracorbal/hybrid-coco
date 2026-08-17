@@ -1,74 +1,56 @@
 # hybrid-coco — Agent Rules
 
-## Session Protocol (mandatory)
-
-**1. Load context before any work:**
-```
-mem_context project=hybrid-coco
-```
-
-**2. Save after any significant decision:**
-```
-mem_save title="..." type="decision|architecture|bugfix" project=hybrid-coco
-```
-
-**3. Summarize at session end:**
-```
-mem_session_summary project=hybrid-coco
-```
-
-Do NOT put volatile state in this file. Use Engram.
+Reglas para agentes que trabajan en este repositorio. Estado del producto y fases: `ROADMAP.md` (raíz).
 
 ---
 
-## Architect / Orchestrator / Subagent Model
+## Non-negotiable constraints
 
-- **Architect** (human): defines phases, reviews, corrects course
-- **Orchestrator** (Claude, main session): reads `ROADMAP.md`, delegates to subagents, saves to Engram
-- **Subagents**: implement specific phases — they read Engram context + this file only
-
-Before delegating: check Engram for prior context on that phase.
-
----
-
-## Non-Negotiable Constraints
-
-- SQLite only — no PostgreSQL, no Docker, no server infrastructure
-- FTS5 + tree-sitter before any embedding/vector layer
+- SQLite only — no PostgreSQL, no Docker, no always-on server infrastructure
+- FTS5 + tree-sitter before any embedding / vector layer
 - `pip install hybrid-coco && hc init` must work — two commands, done
-- MCP server configured for Claude Code (`.claude/settings.json`), NOT `claude_desktop_config.json`
-- tool names `hc_*` must never be truncated — if using gtk-ai, set `GTK_MCP_PASSTHROUGH_PATTERNS="hc_"`
+- MCP server in Claude Code project settings (`.claude/settings.json`), not desktop config
+- MCP tool names `hc_*` must never be truncated or renamed
 - `.claude/` stays gitignored (local Claude Code settings only; not versioned)
+
+---
+
+## Development conventions
+
+- **Roadmap:** phase status and scope live in `ROADMAP.md`; update the Status column when a phase lands
+- **Languages:** new parsers under `src/hybrid_coco/parsers/`, registry in `parsers/__init__.py`, tests in `tests/test_languages.py`, README language table
+- **Skills:** source of truth `src/hybrid_coco/assets/skills/`; mirror to `skills/` and `plugin/skills/`; `hc init` installs into `~/.claude/skills/`
+- **Tests:** `uv run pytest` before merge
+- **PR / roadmap text:** English
+- **Commits / PRs:** project owner identity (`Jose Meira <90699520+jmeiracorbal@users.noreply.github.com>`) — not the cloud agent default author; use `--no-verify` if hooks inject co-author lines
 
 ---
 
 ## Release protocol (after every merge to main)
 
-Always bump and align versions for package + Claude/agent surfaces, then tag:
+Bump and align versions for package + Claude/plugin surfaces, then tag:
 
 1. Set the same semver in:
    - `pyproject.toml` (`project.version`)
-   - `src/hybrid_coco/__init__.py` (`__version__` — CLI `hc --version` reads this)
+   - `src/hybrid_coco/__init__.py` (`__version__` — `hc --version`)
    - `plugin/.claude-plugin/plugin.json`
    - `.claude-plugin/marketplace.json`
    - `ROADMAP.md` package line
-2. Commit on `main` as the project owner (never Cursor Agent): `chore: bump version to X.Y.Z`
+2. Commit on `main` as project owner: `chore: bump version to X.Y.Z`
 3. Create and push annotated tag `vX.Y.Z` (triggers PyPI + GitHub Release)
 
-Do this after every landed feature/fix merge that ships to users. Persist the same rule in Engram when available.
+Do this after every landed feature/fix merge that ships to users.
 
 ---
 
-## Context References
+## Key paths
 
-- **Roadmap + phase status**: `ROADMAP.md`
-- **Live progress**: Engram — `mem_search project=hybrid-coco`
-
----
-
-## Related Components
-
-| Component | Role | Path |
-|-----------|------|------|
-| gtk-ai | Output compression proxy | https://github.com/jmeiracorbal/gtk-ai |
-| CocoIndex (reference) | Indexing pipeline patterns | https://cocoindex.io |
+| Area | Path |
+|------|------|
+| CLI | `src/hybrid_coco/cli.py` |
+| Indexer | `src/hybrid_coco/indexer.py` |
+| MCP server | `src/hybrid_coco/server.py` |
+| Parsers | `src/hybrid_coco/parsers/` |
+| Packaged assets (hooks, awareness, skills) | `src/hybrid_coco/assets/` |
+| Claude Code plugin | `plugin/` |
+| Agent skills (repo mirror) | `skills/` |
