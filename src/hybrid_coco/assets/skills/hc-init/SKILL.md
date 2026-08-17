@@ -33,6 +33,7 @@ If **missing**:
 ```bash
 hc init .
 # or: hc init . --host cursor
+# or: hc init . --host codex
 # or: hc init . --host all
 ```
 
