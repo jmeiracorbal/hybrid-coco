@@ -1,6 +1,15 @@
 # hybrid-coco — Local Code Intelligence
 
+Self-contained local component: SQLite index, `hc` CLI, `hc_*` MCP tools, hooks, awareness, and skills — no external services required.
+
 Index-based code navigation. Same context quality, fewer tokens.
+
+## What's included
+
+- `.hybrid-coco/index.db` in the project workspace
+- `hc index` / `hc update` / `hc query` / `hc symbol` / `hc file-context`
+- MCP tools: `hc_search`, `hc_symbol`, `hc_file_context`, `hc_status`
+- Claude Code hooks and skills (`hybrid-coco`, `hc-init`, `hc-search`)
 
 ## Decision tree
 

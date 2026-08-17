@@ -7,9 +7,9 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![GitHub issues](https://img.shields.io/github/issues/jmeiracorbal/hybrid-coco.svg)](https://github.com/jmeiracorbal/hybrid-coco/issues)
 
-Local code intelligence for AI agents. Index your codebase once, query it deterministically: **~94% fewer tokens** than grep + cat.
+Local, self-contained code intelligence for AI agents. Index your codebase once, query it deterministically with the `hc` CLI and `hc_*` MCP tools — one install, no external services.
 
-hybrid-coco builds a local SQLite index of your source code using tree-sitter, exposes it via a CLI and an MCP server, and integrates with Claude Code via hooks. No embeddings, no vector database, no Docker. One install command.
+hybrid-coco ships everything in one component: SQLite storage, tree-sitter parsers, CLI, MCP server, Claude Code hooks, awareness, and agent skills. No embeddings, no vector database, no Docker, no companion tools.
 
 ```
 pip install hybrid-coco && hc init
@@ -50,7 +50,7 @@ Source files  ──tree-sitter──►  SQLite + FTS5  ──►  CLI (hc)
 
 Measured on a real Rust codebase: 76 files, 2,242 symbols:
 
-| Query | Traditional | hybrid-coco | Savings |
+| Query | Baseline (full read / shell search) | hybrid-coco | Savings |
 |---|---|---|---|
 | Symbol lookup (`TimedExecution`) | 2,227 tok | 51 tok | **97.7%** |
 | Pattern search (`savings`) | 3,164 tok | 334 tok | **89.4%** |
@@ -59,7 +59,7 @@ Measured on a real Rust codebase: 76 files, 2,242 symbols:
 | File read (`git.rs`) | 16,343 tok | 377 tok | **97.7%** |
 | **Total (5 queries)** | **33,966 tok** | **2,036 tok** | **~94%** |
 
-Traditional = `grep -rn` + `cat`. hybrid-coco = `hc symbol` + `hc query` + `hc file-context`.
+Baseline = recursive search plus reading whole files. hybrid-coco = `hc symbol` + `hc query` + `hc file-context`.
 
 ## Quickstart
 

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "hybrid-coco"
 version = "0.1.13"
-description = "Local code intelligence: index, query and expose codebase context deterministically"
+description = "Self-contained local code intelligence: SQLite index, hc CLI, and hc_* MCP tools"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"

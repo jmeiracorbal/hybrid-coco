@@ -1,11 +1,13 @@
 ---
 name: hybrid-coco
-description: When and how to use hybrid-coco hc_* tools for deterministic code navigation instead of Read/Grep.
+description: Self-contained local code intelligence — when and how to use hc_* tools for deterministic code navigation.
 ---
 
 # hybrid-coco
 
 Local SQLite index of the codebase. Prefer `hc_*` MCP tools over blind Read/Grep.
+
+**Self-contained:** index, CLI, MCP tools, hooks, and skills ship together — no external services.
 
 **Core principle:** Index once, query always.
 
