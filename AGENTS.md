@@ -18,8 +18,8 @@ Reglas para agentes que trabajan en este repositorio. Estado del producto y fase
 ## Development conventions
 
 - **Roadmap:** phase status and scope live in `ROADMAP.md`; update the Status column when a phase lands
-- **Languages:** new parsers under `src/hybrid_coco/parsers/`, registry in `parsers/__init__.py`, tests in `tests/test_languages.py`, README language table
-- **Skills:** Claude Code source of truth `src/hybrid_coco/assets/skills/` — mirror to `skills/` and `plugin/skills/` with `hc sync-skills` (CI enforces `--check`). Host-adapted trees live under `src/hybrid_coco/assets/hosts/<host>/skills/`. Same skill names (`hybrid-coco`, `hc-init`, `hc-search`); bodies match that host's MCP path, native tools, and hook events. `skills_src(host)` has no fallback to Claude.
+- **Languages:** one `LanguageSpec` entry in `src/hybrid_coco/languages/registry.py` plus parser module under `src/hybrid_coco/parsers/`; tests in `tests/test_languages.py`; README language table
+- **Skills:** Claude Code source of truth `src/hybrid_coco/assets/skills/` — mirror to `skills/` and `plugin/skills/` with `hc sync-skills` (CI enforces `--check`). Host-adapted trees live under `src/hybrid_coco/assets/hosts/<host>/skills/` only (no repo mirror). Same skill names (`hybrid-coco`, `hc-init`, `hc-search`); bodies match that host's MCP path, native tools, and hook events. `skills_src(host)` has no fallback to Claude.
 - **Tests:** `uv run pytest` before merge
 - **PR / roadmap text:** English
 - **Commits / PRs:** project owner identity (`Jose Meira <90699520+jmeiracorbal@users.noreply.github.com>`) — not the cloud agent default author; use `--no-verify` if hooks inject co-author lines
@@ -48,10 +48,14 @@ Do this after every landed feature/fix merge that ships to users.
 | Area | Path |
 |------|------|
 | CLI | `src/hybrid_coco/cli.py` |
+| Query layer | `src/hybrid_coco/query.py` |
+| Formatters | `src/hybrid_coco/formatters.py` |
 | Indexer | `src/hybrid_coco/indexer.py` |
 | MCP server | `src/hybrid_coco/server.py` |
-| Agent hosts | `src/hybrid_coco/hosts/` |
-| Parsers | `src/hybrid_coco/parsers/` |
+| Language registry | `src/hybrid_coco/languages/registry.py` |
+| Agent hosts | `src/hybrid_coco/hosts/` (`base.py`, `hooks_patch.py`) |
+| Parsers | `src/hybrid_coco/parsers/` (`ts_utils.py`) |
+| Skill mirror sync | `src/hybrid_coco/skills_sync.py` |
 | Packaged assets (hooks, awareness, skills) | `src/hybrid_coco/assets/` |
 | Host-adapted skills | `src/hybrid_coco/assets/hosts/<host>/skills/` |
 | Claude Code plugin | `plugin/` |

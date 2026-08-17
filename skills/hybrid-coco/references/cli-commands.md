@@ -18,7 +18,12 @@ hc reset [PATH]          Delete index DB. Flags: -f, --all (also drop project MC
 hc init [PATH] [--host NAME]...
                          Index + ensure .hybrid-coco/ in .gitignore + register MCP/hooks/skills
                          --host: claude (default), cursor, codex, opencode, devin, all
+hc install-instructions [--host NAME]...
+                         Short conditional protocol in user-global instruction files
+hc hook <HOST> <EVENT>   Host lifecycle hook (JSON stdin/stdout; used by agent hosts)
 ```
+
+Maintainer-only (not needed for normal agent use): `hc sync-skills [--check]` — keep repo `skills/` and `plugin/skills/` aligned with `assets/skills/`.
 
 `.hybrid-coco/config.toml` is created automatically if missing (`hc init`, `hc index`, `hc doctor`). All three keys are required:
 

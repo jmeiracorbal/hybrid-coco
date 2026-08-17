@@ -183,6 +183,8 @@ hc install-instructions [--host NAME]...
 hc init [PATH] [--host NAME]...
                          Index + marker + .gitignore + register MCP/hooks/skills
                          --host: claude (default), cursor, codex, opencode, devin, all
+hc sync-skills [--check] Maintainer: sync Claude skill mirrors from assets/skills/
+                         to skills/ and plugin/skills/ (--check verifies CI parity)
 ```
 
 `--exclude` accepts gitignore-style patterns and may be repeated. They are combined with `exclude` in `.hybrid-coco/config.toml`. If that file is missing, `hc init`, `hc index`, `hc update`, and `hc doctor` write the default and continue.
@@ -230,7 +232,7 @@ exclude = ["**/generated/**"]
 | Kotlin | tree-sitter-kotlin |
 | Swift | tree-sitter-swift |
 
-Adding a language requires implementing a ~100-line parser in `src/hybrid_coco/parsers/`.
+Adding a language: one `LanguageSpec` in `src/hybrid_coco/languages/registry.py`, a parser module under `src/hybrid_coco/parsers/`, and tests in `tests/test_languages.py`.
 
 ## Design decisions
 
@@ -259,7 +261,7 @@ It does not require companion services, external proxies, background daemons, or
 ```bash
 git clone https://github.com/jmeiracorbal/hybrid-coco
 cd hybrid-coco
-uv sync
+uv sync --extra dev
 uv pip install -e .
 hc --version
 ```
@@ -269,6 +271,25 @@ Run tests:
 ```bash
 uv run pytest
 ```
+
+### Layout (maintainers)
+
+| Layer | Modules |
+|---|---|
+| Application | `query.py`, `formatters.py` |
+| Indexing | `indexer.py`, `parsers/`, `languages/registry.py` |
+| Storage | `store.py`, `structure.py` |
+| Host integration | `hosts/` (`base.py`, `hooks_patch.py`, per-host installers) |
+| Packaged assets | `assets/` (skills, hooks, awareness) |
+
+After editing Claude skills in `src/hybrid_coco/assets/skills/`:
+
+```bash
+hc sync-skills          # refresh skills/ and plugin/skills/
+hc sync-skills --check  # verify mirrors (same check as CI)
+```
+
+Host-adapted skills under `assets/hosts/<host>/skills/` are installed by `hc init` only — no repo mirror.
 
 Run the benchmark against any indexed project:
 

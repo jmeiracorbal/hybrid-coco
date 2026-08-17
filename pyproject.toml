@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hybrid-coco"
-version = "0.1.18"
+version = "0.2.0"
 description = "Self-contained local code intelligence: SQLite index, hc CLI, and hc_* MCP tools"
 readme = "README.md"
 license = { file = "LICENSE" }
