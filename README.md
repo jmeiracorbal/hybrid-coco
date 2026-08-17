@@ -93,10 +93,11 @@ cd your-project/
 hc init
 ```
 
-`hc init` does three things:
+`hc init` does four things:
 - Indexes the current directory (tree-sitter, SHA-256 incremental)
 - Registers the MCP server in `.claude/settings.json`
 - Installs global hooks in `~/.claude/hooks/` that intercept `Read` and `Grep`
+- Installs agent skills in `~/.claude/skills/` (`hybrid-coco`, `hc-init`, `hc-search`)
 
 Restart Claude Code to activate.
 
@@ -110,6 +111,8 @@ hc_symbol("TimedExecution")    # exact/prefix symbol lookup
 hc_file_context("src/git.rs")  # all symbols in a file, structured
 hc_status()                    # index stats
 ```
+
+Invocable skills: `/hc-init` (setup/repair without full-reindex storms), `/hc-search` (choose the right `hc_*` query). The main `hybrid-coco` skill covers when to prefer `hc_*` over Read/Grep.
 
 The hooks will remind you (via stderr) whenever Claude is about to read an indexed file directly.
 

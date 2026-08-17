@@ -397,18 +397,42 @@ def _entry_present(entries: list, command: str) -> bool:
     return False
 
 
-def _install_global(claude_dir: Path) -> dict[str, bool]:
+def _install_skills(claude_dir: Path) -> list[str]:
+    """Copy packaged skills into ~/.claude/skills/. Returns installed skill names."""
+    src_root = _ASSETS_DIR / "skills"
+    if not src_root.is_dir():
+        return []
+
+    dst_root = claude_dir / "skills"
+    installed: list[str] = []
+    for skill_dir in sorted(src_root.iterdir()):
+        if not skill_dir.is_dir():
+            continue
+        skill_md = skill_dir / "SKILL.md"
+        if not skill_md.is_file():
+            continue
+        dst = dst_root / skill_dir.name
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.copytree(skill_dir, dst)
+        installed.append(skill_dir.name)
+    return installed
+
+
+def _install_global(claude_dir: Path) -> dict[str, bool | list[str]]:
     """
-    Install hybrid-coco awareness in Claude Code global config.
+    Install hybrid-coco awareness, hooks, and skills in Claude Code global config.
 
     Returns a dict with keys:
-      awareness_written, claude_md_updated, hooks_installed, settings_patched
+      awareness_written, claude_md_updated, hooks_installed, settings_patched,
+      skills_installed (list of skill names)
     """
-    result = {
+    result: dict[str, bool | list[str]] = {
         "awareness_written": False,
         "claude_md_updated": False,
         "hooks_installed": False,
         "settings_patched": False,
+        "skills_installed": [],
     }
 
     # 1. Write ~/.claude/hybrid-coco.md
@@ -443,7 +467,10 @@ def _install_global(claude_dir: Path) -> dict[str, bool]:
         dst.chmod(0o755)
     result["hooks_installed"] = True
 
-    # 4. Patch ~/.claude/settings.json
+    # 4. Install agent skills to ~/.claude/skills/
+    result["skills_installed"] = _install_skills(claude_dir)
+
+    # 5. Patch ~/.claude/settings.json
     settings_path = claude_dir / "settings.json"
     if settings_path.exists():
         try:
@@ -534,6 +561,11 @@ def cmd_init(path: str, global_config: bool):
     click.echo(f"  ✓ Hooks installed in ~/.claude/hooks/")
     click.echo(f"  ✓ PreToolUse: Read|Grep → hc_* suggestion")
     click.echo(f"  ✓ PostToolUse: Write|Edit → hc update")
+    skills = global_result["skills_installed"]
+    if skills:
+        click.echo(f"  ✓ Skills installed in ~/.claude/skills/: {', '.join(skills)}")
+    else:
+        click.echo("  ✓ Skills: none found in package assets")
     click.echo()
 
     click.echo("Done. Restart Claude Code to activate.")

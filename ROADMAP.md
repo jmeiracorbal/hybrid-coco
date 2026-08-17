@@ -1,6 +1,6 @@
 # hybrid-coco — Roadmap
 
-Status: **active** · Last updated: 2026-08-16 · Package: `0.1.12`
+Status: **active** · Last updated: 2026-08-17 · Package: `0.1.12`
 
 ## Goal
 
@@ -33,8 +33,8 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | 02 | Query filters (path, language, pagination) | **done** |
 | 03 | Doctor, reset, version alignment | **done** |
 | 04 | Language coverage (Go, Java, then C/C++) | **done** |
-| 05 | Agent skill owns lifecycle | **next** |
-| 06 | Symbol body / targeted snippet | pending |
+| 05 | Agent skill owns lifecycle | **done** |
+| 06 | Symbol body / targeted snippet | **next** |
 | 07 | Structural search (tree-sitter patterns) | later |
 | 08 | Settings file (include / exclude) | later |
 | 09 | Embeddings optional layer (`sqlite-vec`) | deferred |
@@ -101,6 +101,8 @@ Each language: tree-sitter grammar dependency, `~100`-line parser extracting fun
 - Skill instructs: if index missing → `hc init` / `hc index`; if stale after edits → `hc update`; then use `hc_*` / CLI
 - Align plugin skill + packaged assets skill
 - Keep Claude Code as primary host; do not weaken `hc_*` naming
+
+**Done:** main skill `hybrid-coco` (policy) + invocable `hc-init` / `hc-search` (lifecycle/query); packaged under `assets/skills`, mirrored in `plugin/skills` and repo `skills/`; `hc init` installs to `~/.claude/skills/`. SessionStart/`hc update` remain incremental — skills must not trigger full reindex storms.
 
 **Exit criteria:** skill text is actionable end-to-end; SessionStart + skill do not fight each other (no double full reindex storms).
 
