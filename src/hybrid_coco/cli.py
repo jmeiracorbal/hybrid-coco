@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 import logging
 import sys
 from pathlib import Path
@@ -11,14 +10,26 @@ import click
 
 from . import __version__
 from .config import get_index_path
-from .filters import DEFAULT_QUERY_LIMIT, validate_languages, validate_paging, validate_path_filter
+from .filters import DEFAULT_QUERY_LIMIT
+from .formatters import OutputStyle, format_file_context, format_search, format_status, format_structure, format_symbol
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
 from .hosts import HOST_NAMES, install_hosts, resolve_host_names
 from .hosts.instructions import install_global_instructions, strip_legacy_global_claude_include
+from .query import (
+    IndexNotFoundError,
+    file_context,
+    fts_search,
+    lookup_symbol,
+    open_store,
+    parse_query_filters,
+    project_stats,
+    structure_search,
+    validate_structure_kind_param,
+)
 from .settings import SettingsError, ensure_settings, load_or_create_settings, settings_path
 from .snippet import SnippetError, read_snippet
 from .store import Store
-from .structure import StructureError, search_structure, validate_structure_kind
+from .structure import StructureError
 
 
 def _parse_exclude(exclude: tuple[str, ...]) -> tuple[str, ...]:
@@ -39,13 +50,10 @@ def _parse_query_filters(
     limit: int,
 ) -> tuple[str | None, tuple[str, ...], int, int]:
     try:
-        path_f = validate_path_filter(path)
-        langs = validate_languages(lang)
-        validate_paging(offset=offset, limit=limit)
+        return parse_query_filters(path=path, lang=lang, offset=offset, limit=limit)
     except ValueError as exc:
         click.echo(f"Error: {exc}", err=True)
         sys.exit(1)
-    return path_f, langs, offset, limit
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -56,11 +64,11 @@ logging.basicConfig(
 
 
 def _require_store(root: Path) -> Store:
-    db = get_index_path(root)
-    if not db.exists():
-        click.echo(f"No index found at {db}. Run: hc index {root}", err=True)
+    try:
+        return open_store(root)
+    except IndexNotFoundError as exc:
+        click.echo(f"No index found at {exc.db_path}. Run: hc index {root}", err=True)
         sys.exit(1)
-    return Store(db)
 
 
 # ── CLI group ─────────────────────────────────────────────────────────────────
@@ -149,27 +157,11 @@ def cmd_status(path: str):
     root = Path(path).resolve()
     store = _require_store(root)
     try:
-        s = store.stats()
+        stats = project_stats(store)
     finally:
         store.close()
 
-    db = get_index_path(root)
-    by_kind = s["by_kind"]
-    PLURAL = {"class": "classes"}
-    kind_parts = ", ".join(
-        f"{n} {PLURAL.get(k, k + 's')}" for k, n in sorted(by_kind.items(), key=lambda x: -x[1])
-    )
-
-    ts = s["last_indexed"]
-    if ts:
-        updated = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
-    else:
-        updated = "never"
-
-    click.echo(f"Index: {db}")
-    click.echo(f"Files:   {s['files']} indexed")
-    click.echo(f"Symbols: {s['symbols']} ({kind_parts})")
-    click.echo(f"Updated: {updated}")
+    click.echo(format_status(stats, get_index_path(root)))
 
 
 # ── hc query ─────────────────────────────────────────────────────────────────
@@ -188,8 +180,8 @@ def cmd_query(text: str, path_filter: str | None, lang: tuple, offset: int, limi
     root = Path.cwd()
     store = _require_store(root)
     try:
-        results = store.fts_search(
-            text, path=path_f, languages=langs, offset=offset, limit=limit
+        results = fts_search(
+            store, text, path=path_f, languages=langs, offset=offset, limit=limit
         )
     finally:
         store.close()
@@ -198,9 +190,7 @@ def cmd_query(text: str, path_filter: str | None, lang: tuple, offset: int, limi
         click.echo("No results.")
         return
 
-    for r in results:
-        doc_part = f" — {r['docstring'][:80]}" if r.get("docstring") else ""
-        click.echo(f"[{r['path']}:{r['line_start']}]  {r['kind']} {r['name']}{doc_part}")
+    click.echo(format_search(text, results, style=OutputStyle.CLI))
 
 
 # ── hc symbol ────────────────────────────────────────────────────────────────
@@ -219,23 +209,13 @@ def cmd_symbol(name: str, path_filter: str | None, lang: tuple, offset: int, lim
     root = Path.cwd()
     store = _require_store(root)
     try:
-        results = store.lookup_symbol(
-            name, path=path_f, languages=langs, offset=offset, limit=limit
+        results = lookup_symbol(
+            store, name, path=path_f, languages=langs, offset=offset, limit=limit
         )
     finally:
         store.close()
 
-    if not results:
-        click.echo(f"Symbol '{name}' not found.")
-        return
-
-    for r in results:
-        parent = f" (in {r['parent_name']})" if r.get("parent_name") else ""
-        click.echo(f"{r['kind']} {r['name']}{parent} @ {r['path']}:{r['line_start']}-{r['line_end']}")
-        if r.get("signature"):
-            click.echo(f"  sig: {r['signature']}")
-        if r.get("docstring"):
-            click.echo(f"  doc: {r['docstring'][:120]}")
+    click.echo(format_symbol(name, results, style=OutputStyle.CLI))
 
 
 # ── hc file-context ──────────────────────────────────────────────────────────
@@ -247,7 +227,7 @@ def cmd_file_context(path: str):
     root = Path.cwd()
     store = _require_store(root)
     try:
-        data = store.file_context(path)
+        data = file_context(store, path)
     finally:
         store.close()
 
@@ -255,40 +235,7 @@ def cmd_file_context(path: str):
         click.echo(f"File '{path}' not found in index. Is it indexed? Run: hc update")
         sys.exit(1)
 
-    symbols = data["symbols"]
-    lang = data["language"] or "unknown"
-    click.echo(f"File: {path} ({lang}) — {len(symbols)} symbols")
-
-    by_kind: dict[str, list[dict]] = {}
-    for sym in symbols:
-        by_kind.setdefault(sym["kind"], []).append(sym)
-
-    KIND_ORDER = ["class", "function", "method", "import"]
-    seen: set[str] = set()
-    ordered_kinds = []
-    for k in KIND_ORDER:
-        if k in by_kind:
-            ordered_kinds.append(k)
-            seen.add(k)
-    for k in sorted(by_kind.keys()):
-        if k not in seen:
-            ordered_kinds.append(k)
-
-    PLURAL = {"class": "Classes", "function": "Functions", "method": "Methods",
-               "import": "Imports"}
-    click.echo()
-    for kind in ordered_kinds:
-        group = by_kind[kind]
-        label = PLURAL.get(kind, kind.capitalize() + "s")
-        click.echo(f"{label} ({len(group)}):")
-        for sym in group:
-            if kind == "import":
-                click.echo(f"  {sym['name']}")
-            elif sym.get("signature"):
-                click.echo(f"  {sym['name']} @ {sym['line_start']}  {sym['signature']}")
-            else:
-                click.echo(f"  {sym['name']} @ {sym['line_start']}")
-        click.echo()
+    click.echo(format_file_context(path, data, style=OutputStyle.CLI))
 
 
 # ── hc snippet ───────────────────────────────────────────────────────────────
@@ -318,7 +265,7 @@ def cmd_snippet(path: str, line_start: int, line_end: int):
 def cmd_structure(kind: str, path_filter: str | None, lang: tuple, offset: int, limit: int):
     """Find code by tree-sitter shape: function, method, class, or import."""
     try:
-        validate_structure_kind(kind)
+        validate_structure_kind_param(kind)
     except StructureError as exc:
         click.echo(f"Error: {exc}", err=True)
         sys.exit(1)
@@ -326,7 +273,7 @@ def cmd_structure(kind: str, path_filter: str | None, lang: tuple, offset: int, 
     root = Path.cwd()
     store = _require_store(root)
     try:
-        results = search_structure(
+        results = structure_search(
             root,
             store,
             kind,
@@ -341,17 +288,9 @@ def cmd_structure(kind: str, path_filter: str | None, lang: tuple, offset: int, 
     finally:
         store.close()
 
-    if not results:
-        click.echo("No results.")
-        return
-
-    for match in results:
-        label = match.name if match.name else match.node_type
-        click.echo(
-            f"[{match.path}:{match.line_start}] {match.kind} {label} ({match.language})"
-        )
-        if match.preview:
-            click.echo(f"  {match.preview}")
+    output = format_structure(kind, results, style=OutputStyle.CLI)
+    if output:
+        click.echo(output)
 
 
 # ── hc serve ─────────────────────────────────────────────────────────────────

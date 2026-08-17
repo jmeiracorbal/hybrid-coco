@@ -340,7 +340,8 @@ def test_query_filters_path_lang_pagination(tmp_path: Path, monkeypatch: pytest.
 
 def test_mcp_tool_filters_and_schema(tmp_path: Path):
     import asyncio
-    from hybrid_coco.server import _parse_filters, build_server
+    from hybrid_coco.query import parse_query_filters
+    from hybrid_coco.server import build_server
 
     src = tmp_path / "src"
     src.mkdir()
@@ -348,7 +349,7 @@ def test_mcp_tool_filters_and_schema(tmp_path: Path):
     (tmp_path / "b.py").write_text("def alpha():\n    return 2\n")
     index_path(tmp_path)
 
-    path_f, langs, offset, limit = _parse_filters(
+    path_f, langs, offset, limit = parse_query_filters(
         path="src/", lang=["python"], offset=0, limit=5
     )
     assert path_f == "src/"
@@ -357,7 +358,7 @@ def test_mcp_tool_filters_and_schema(tmp_path: Path):
     assert limit == 5
 
     with pytest.raises(ValueError, match="non-empty"):
-        _parse_filters(path="", lang=None, offset=0, limit=5)
+        parse_query_filters(path="", lang=None, offset=0, limit=5)
 
     server, store = build_server(tmp_path)
     try:
