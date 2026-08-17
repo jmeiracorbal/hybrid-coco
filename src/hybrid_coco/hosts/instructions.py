@@ -1,32 +1,50 @@
-"""project-local agent instruction pointers (mnemo-style managed sections)."""
+"""mnemo-style project instruction install: shared AGENTS.md + Claude @AGENTS.md."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from .common import ASSETS_DIR
+from .marker import add_agent
 
 SECTION_START = "<!-- hybrid-coco:start -->"
 SECTION_END = "<!-- hybrid-coco:end -->"
+CLAUDE_SECTION_START = "<!-- hybrid-coco:claude-start -->"
+CLAUDE_SECTION_END = "<!-- hybrid-coco:claude-end -->"
+AGENTS_PRELUDE = "@AGENTS.md"
 AWARENESS_REL = Path(".hybrid-coco") / "hybrid-coco.md"
 LEGACY_GLOBAL_INCLUDE = "@hybrid-coco.md"
 
-POINTER_BODY = (
-    "If `.hybrid-coco/index.db` exists, prefer `hc_*` MCP tools over native "
-    "Read/Grep (or the host equivalent) for code navigation in this project. "
-    "If the index is missing, skip hybrid-coco or run `hc init`. "
+# shared gate for AGENTS.md — short, not the decision-tree protocol.
+AGENTS_BODY = (
+    "## hybrid-coco\n"
+    "\n"
+    "This project is indexed with hybrid-coco when `.hybrid-coco/index.db` exists. "
+    "Prefer `hc_*` MCP tools over native Read/Grep (or the host equivalent).\n"
+    "\n"
+    "When the index exists: `hc_symbol`, `hc_search`, `hc_file_context`, "
+    "`hc_snippet`, `hc_structure`, `hc_status`. "
     "Skills: `hybrid-coco`, `/hc-init`, `/hc-search`. "
-    f"Full protocol: `{AWARENESS_REL.as_posix()}`."
+    f"Full protocol: `{AWARENESS_REL.as_posix()}`.\n"
+    "\n"
+    "If the index is missing, skip hybrid-coco or run `hc init`.\n"
 )
 
-CLAUDE_POINTER = f"@{AWARENESS_REL.as_posix()}\n{POINTER_BODY}"
+# Claude-only extras. shared rules live in AGENTS.md (mnemo claudecode.md split).
+CLAUDE_BODY = (
+    "### hybrid-coco\n"
+    "\n"
+    "Prefer `hc_*` MCP tools over Claude Code `Read`/`Grep` when "
+    "`.hybrid-coco/index.db` exists. Shared protocol: `AGENTS.md`. "
+    f"Full details: `{AWARENESS_REL.as_posix()}`.\n"
+)
 
 CURSOR_RULE = (
     "---\n"
-    "description: Prefer hybrid-coco hc_* tools for code navigation in this project\n"
+    "description: Prefer hybrid-coco hc_* tools when this project is indexed\n"
     "alwaysApply: true\n"
     "---\n\n"
-    f"{POINTER_BODY}\n"
+    f"{AGENTS_BODY}"
 )
 
 
@@ -40,7 +58,14 @@ def write_project_awareness(root: Path) -> Path:
     return dst
 
 
-def upsert_managed_section(*, path: Path, start: str, end: str, content: str) -> bool:
+def upsert_managed_section(
+    *,
+    path: Path,
+    start: str,
+    end: str,
+    content: str,
+    prelude: str,
+) -> bool:
     if not start:
         raise ValueError("start marker is empty")
     if not end:
@@ -72,13 +97,23 @@ def upsert_managed_section(*, path: Path, start: str, end: str, content: str) ->
         finish += len(end)
         updated = existing[:begin] + block + existing[finish:]
     else:
-        updated = _append_section(existing, block)
+        addition = block
+        if prelude != "" and not _contains_line(existing, prelude):
+            addition = prelude + "\n\n" + addition
+        updated = _append_section(existing, addition)
 
     if updated == existing:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(updated, encoding="utf-8")
     return True
+
+
+def _contains_line(content: str, target: str) -> bool:
+    for line in content.split("\n"):
+        if line.strip() == target:
+            return True
+    return False
 
 
 def _append_section(existing: str, addition: str) -> str:
@@ -91,21 +126,24 @@ def _append_section(existing: str, addition: str) -> str:
     return existing + "\n\n" + addition + "\n"
 
 
-def install_claude_pointer(root: Path) -> bool:
-    return upsert_managed_section(
-        path=root / "CLAUDE.md",
-        start=SECTION_START,
-        end=SECTION_END,
-        content=CLAUDE_POINTER,
-    )
-
-
 def install_agents_pointer(root: Path) -> bool:
     return upsert_managed_section(
         path=root / "AGENTS.md",
         start=SECTION_START,
         end=SECTION_END,
-        content=POINTER_BODY,
+        content=AGENTS_BODY,
+        prelude="",
+    )
+
+
+def install_claude_pointer(root: Path) -> bool:
+    install_agents_pointer(root)
+    return upsert_managed_section(
+        path=root / "CLAUDE.md",
+        start=CLAUDE_SECTION_START,
+        end=CLAUDE_SECTION_END,
+        content=CLAUDE_BODY,
+        prelude=AGENTS_PRELUDE,
     )
 
 
@@ -148,11 +186,13 @@ def apply_project_instructions(*, root: Path, host: str, home: Path) -> list[str
     lines: list[str] = []
     write_project_awareness(root)
     lines.append(f"awareness written to {AWARENESS_REL.as_posix()}")
+    add_agent(root, host)
+    lines.append(f"project marker: agent {host}")
     lines.extend(strip_legacy_global_claude_include(home))
 
     if host == "claude":
         install_claude_pointer(root)
-        lines.append("project CLAUDE.md: hybrid-coco pointer (managed section)")
+        lines.append("project AGENTS.md + CLAUDE.md: hybrid-coco managed sections")
         return lines
     if host == "cursor":
         install_cursor_rule(root)

@@ -84,10 +84,14 @@ def test_claude_install_writes_skills_and_mcp(tmp_path: Path):
     awareness = (root / ".hybrid-coco" / "hybrid-coco.md").read_text(encoding="utf-8")
     assert "hc_file_context" in awareness
     claude_md = (root / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "<!-- hybrid-coco:start -->" in claude_md
-    assert "@.hybrid-coco/hybrid-coco.md" in claude_md
+    agents_md = (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "@AGENTS.md" in claude_md
+    assert "<!-- hybrid-coco:claude-start -->" in claude_md
+    assert "<!-- hybrid-coco:start -->" in agents_md
     assert "Decision tree" not in claude_md
-    assert not (root / "AGENTS.md").exists()
+    assert "Decision tree" not in agents_md
+    marker = json.loads((root / ".hybrid-coco" / "project.json").read_text(encoding="utf-8"))
+    assert marker["agents"] == ["claude"]
 
 
 def test_claude_install_strips_legacy_global_claude_include(tmp_path: Path):
@@ -104,7 +108,8 @@ def test_claude_install_strips_legacy_global_claude_include(tmp_path: Path):
     assert "User notes" in leftover
     assert "@hybrid-coco.md" not in leftover
     project_md = (root / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "<!-- hybrid-coco:start -->" in project_md
+    assert "@AGENTS.md" in project_md
+    assert "<!-- hybrid-coco:claude-start -->" in project_md
 
 
 def test_cursor_install_matches_packaged_skills(tmp_path: Path):
@@ -185,7 +190,8 @@ def test_init_default_is_claude_only(project: Path, tmp_path: Path, monkeypatch:
     assert (project / ".claude" / "settings.json").is_file()
     assert not (project / ".cursor" / "mcp.json").exists()
     assert (project / "CLAUDE.md").is_file()
-    assert not (project / "AGENTS.md").exists()
+    assert (project / "AGENTS.md").is_file()
+    assert "@AGENTS.md" in (project / "CLAUDE.md").read_text(encoding="utf-8")
 
 
 def test_init_host_all(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -201,8 +207,10 @@ def test_init_host_all(project: Path, tmp_path: Path, monkeypatch: pytest.Monkey
     assert (project / "CLAUDE.md").is_file()
     assert (project / "AGENTS.md").is_file()
     assert (project / ".cursor" / "rules" / "hybrid-coco.mdc").is_file()
-    assert "@.hybrid-coco/hybrid-coco.md" in (project / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "@AGENTS.md" in (project / "CLAUDE.md").read_text(encoding="utf-8")
     assert "<!-- hybrid-coco:start -->" in (project / "AGENTS.md").read_text(encoding="utf-8")
+    marker = json.loads((project / ".hybrid-coco" / "project.json").read_text(encoding="utf-8"))
+    assert set(marker["agents"]) == {"claude", "cursor", "codex", "opencode", "devin"}
 
 
 def test_init_unknown_host_fails(project: Path):

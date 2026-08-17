@@ -104,7 +104,7 @@ hc init --host all      # every supported host
 - Registers the MCP server in the host project config
 - Installs host-native hooks that intercept `Read` and `Grep` (or the host's equivalent)
 - Installs host-adapted agent skills (`hybrid-coco`, `hc-init`, `hc-search`) — same names, host-specific MCP paths, native tools, and hook events
-- Writes the full protocol to `.hybrid-coco/hybrid-coco.md` and a **short managed pointer** in the project instruction file for that host (`CLAUDE.md`, `AGENTS.md`, or `.cursor/rules/hybrid-coco.mdc`). It does **not** append to `~/.claude/CLAUDE.md` or any user-global `AGENTS.md`
+- Activates the project the same way mnemo does: a marker (`.hybrid-coco/project.json`), the full protocol in `.hybrid-coco/hybrid-coco.md`, and a **short managed section** in project instruction files. It does **not** append to `~/.claude/CLAUDE.md` or any user-global `AGENTS.md`
 
 Restart the agent host to activate.
 
@@ -137,7 +137,17 @@ The hooks will remind the agent (via the host's hook protocol) whenever it is ab
 
 Skills keep the same names on every host (`hybrid-coco`, `hc-init`, `hc-search`) so `/hc-init` and `/hc-search` still work. The `SKILL.md` body is host-adapted: MCP path, native tools to avoid, and only the hook events that host actually fires. Hooks never invent events a host does not support.
 
-Instruction files follow the mnemo convention: a tiny `<!-- hybrid-coco:start -->` … `<!-- hybrid-coco:end -->` block (or a dedicated Cursor rule) pointing at `.hybrid-coco/hybrid-coco.md`. Existing user content outside the markers is preserved. Re-running `hc init` refreshes the block without duplicating it.
+Instruction files follow the mnemo project layout:
+
+```
+project/
+├── .hybrid-coco/hybrid-coco.md   ← full protocol (gitignored with the index)
+├── .hybrid-coco/project.json     ← activated agents (like mnemo's `.mnemo`)
+├── AGENTS.md                     ← short `<!-- hybrid-coco:start -->` block
+└── CLAUDE.md                     ← @AGENTS.md + `<!-- hybrid-coco:claude-start -->`
+```
+
+Cursor gets `.cursor/rules/hybrid-coco.mdc` instead of `CLAUDE.md`. Existing user content outside the markers is preserved. Re-running `hc init` refreshes the managed block without duplicating it.
 
 ## CLI reference
 
