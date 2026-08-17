@@ -128,9 +128,9 @@ The hooks will remind the agent (via the host's hook protocol) whenever it is ab
 | Cursor | `--host cursor` | `.cursor/mcp.json` | `.cursor/skills/` + `~/.cursor/skills/` | `preToolUse` `Read\|Grep`, `beforeReadFile`, `postToolUse` `Write\|StrReplace`, `afterFileEdit`, `sessionStart` |
 | Codex | `--host codex` | `.codex/config.toml` | `.agents/skills/` + `~/.agents/skills/` | `PreToolUse` Bash (`cat`/`head`/`rg`/`grep`), `PostToolUse` `apply_patch`, `SessionStart` |
 | OpenCode | `--host opencode` | `opencode.json` | `.opencode/skills/` + `~/.config/opencode/skills/` | plugin `tool.execute.before/after` (`read`/`grep` via `filePath`) |
-| Devin | phase 13 | `.devin/mcp_config.json` | `.devin/skills/` | `.devin/hooks.v1.json` (`read`/`grep`) |
+| Devin | `--host devin` | `.devin/mcp_config.json` | `.devin/skills/` + `~/.config/devin/skills/` | `.devin/hooks.v1.json` (`read`/`grep`, Claude-compatible `decision: block`) |
 
-Skills are equivalent on every host (same packaged files). Hooks use only the events that host actually supports. Devin lands in a follow-up PR (roadmap phase 13).
+Skills are equivalent on every host (same packaged files). Hooks use only the events that host actually supports.
 
 ## CLI reference
 
@@ -156,7 +156,7 @@ hc serve                 Start MCP server (stdio)
 hc hook <HOST> <EVENT>   Host lifecycle hook (JSON stdin/stdout)
 hc init [PATH] [--host NAME]...
                          Index + .gitignore + register MCP/hooks/skills
-                         --host: claude (default), cursor, codex, opencode, all (repeatable)
+                         --host: claude (default), cursor, codex, opencode, devin, all
 ```
 
 `--exclude` accepts gitignore-style patterns and may be repeated. They are combined with `exclude` in `.hybrid-coco/config.toml`. If that file is missing, `hc init`, `hc index`, `hc update`, and `hc doctor` write the default and continue.

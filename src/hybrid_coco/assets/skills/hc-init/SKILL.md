@@ -35,6 +35,7 @@ hc init .
 # or: hc init . --host cursor
 # or: hc init . --host codex
 # or: hc init . --host opencode
+# or: hc init . --host devin
 # or: hc init . --host all
 ```
 

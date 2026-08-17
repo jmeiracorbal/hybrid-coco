@@ -24,7 +24,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
 | CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init`, `hook` |
 | MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status` (path/lang/offset/limit on search, symbol & structure) |
-| Hosts | Claude Code (default); Cursor; Codex; OpenCode |
+| Hosts | Claude Code (default); Cursor; Codex; OpenCode; Devin |
 | Hooks | Host-native intercept of Read/Grep (or equivalent) → `hc_*`; write/edit → `hc update`; session start incremental update where the host has the event |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 
@@ -44,7 +44,7 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | 10 | Cursor host (MCP, skills, hooks) | **done** |
 | 11 | Codex host (MCP, skills, hooks) | **done** |
 | 12 | OpenCode host (MCP, skills, hooks) | **done** |
-| 13 | Devin host (MCP, skills, hooks) | pending |
+| 13 | Devin host (MCP, skills, hooks) | **done** |
 
 ---
 
@@ -195,14 +195,17 @@ OpenCode `read` uses `filePath`. The hook does not alias Claude's `file_path`. B
 
 **Why:** Devin CLI is Claude-hook-compatible (`.devin/hooks.v1.json`) with its own MCP file and skill directories.
 
-**Scope:**
+**Done:** `hc init --host devin` registers:
 
-- MCP: `.devin/mcp_config.json`
-- Skills: `.devin/skills/` + `~/.config/devin/skills/`
-- Hooks: `.devin/hooks.v1.json` — `PreToolUse` `read|grep`, `PostToolUse` `write|edit`, `SessionStart`
-- Tool names are lowercase (`read`, `grep`); matchers are regex as Devin documents
+| Surface | Location | Behavior |
+|---------|----------|----------|
+| MCP | `.devin/mcp_config.json` | same `hc serve` stdio entry |
+| Skills | `.devin/skills/` + `~/.config/devin/skills/` | same packaged `SKILL.md` set |
+| Hooks | `.devin/hooks.v1.json` (file **is** the hooks object) | `PreToolUse` `^(read\|grep)$`, `PostToolUse` `^(write\|edit)$`, `SessionStart` |
 
-**Exit criteria:** init + doctor + reset cover Devin; hook tests use Devin `decision: block` shape; skills match packaged assets.
+Tool names are lowercase. Output is Claude-compatible `decision: block`. Matchers are regex, as Devin documents.
+
+**Exit criteria:** init is idempotent; hooks.v1.json has no wrapper `hooks` key; skills match packaged assets; `read`/`grep` intercept tests pass.
 
 ---
 

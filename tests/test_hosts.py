@@ -14,6 +14,7 @@ from hybrid_coco.hosts.common import SKILL_NAMES
 from hybrid_coco.hosts.claude import ClaudeHost
 from hybrid_coco.hosts.codex import CodexHost
 from hybrid_coco.hosts.cursor import CursorHost
+from hybrid_coco.hosts.devin import DevinHost
 from hybrid_coco.hosts.opencode import OpenCodeHost
 from hybrid_coco.indexer import index_path
 
@@ -159,6 +160,7 @@ def test_init_host_all(project: Path, tmp_path: Path, monkeypatch: pytest.Monkey
     assert (project / ".cursor" / "mcp.json").is_file()
     assert (project / ".codex" / "config.toml").is_file()
     assert (project / "opencode.json").is_file()
+    assert (project / ".devin" / "mcp_config.json").is_file()
 
 
 def test_init_unknown_host_fails(project: Path):
@@ -408,3 +410,77 @@ def test_opencode_hook_ignores_claude_file_path_key(project: Path, monkeypatch: 
     result = runner.invoke(main, ["hook", "opencode", "pre-tool-use"], input=payload)
     assert result.exit_code == 0, result.output
     assert result.output.strip() == ""
+
+
+def test_devin_install_mcp_hooks_skills(tmp_path: Path):
+    home = tmp_path / "home"
+    home.mkdir()
+    root = tmp_path / "proj"
+    root.mkdir()
+    result = DevinHost().install(root, global_config=False, home=home)
+    assert set(result.skills) == set(SKILL_NAMES)
+    mcp = json.loads((root / ".devin" / "mcp_config.json").read_text(encoding="utf-8"))
+    assert mcp["mcpServers"]["hybrid-coco"]["command"] == "hc"
+    hooks = json.loads((root / ".devin" / "hooks.v1.json").read_text(encoding="utf-8"))
+    assert "hooks" not in hooks
+    pre = hooks["PreToolUse"]
+    assert any(e.get("matcher") == "^(read|grep)$" for e in pre)
+    assert any(
+        any(h.get("command") == "hc hook devin pre-tool-use" for h in e.get("hooks", []))
+        for e in pre
+    )
+    packaged = Path(__file__).resolve().parents[1] / "src" / "hybrid_coco" / "assets" / "skills"
+    for dest in (home / ".config" / "devin" / "skills", root / ".devin" / "skills"):
+        for name in SKILL_NAMES:
+            assert (dest / name / "SKILL.md").read_bytes() == (
+                packaged / name / "SKILL.md"
+            ).read_bytes()
+    DevinHost().install(root, global_config=False, home=home)
+    hooks2 = json.loads((root / ".devin" / "hooks.v1.json").read_text(encoding="utf-8"))
+    commands = [
+        h.get("command")
+        for e in hooks2["PreToolUse"]
+        for h in e.get("hooks", [])
+    ]
+    assert commands.count("hc hook devin pre-tool-use") == 1
+
+
+def test_init_host_devin(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _home(monkeypatch, tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(main, ["init", str(project), "--host", "devin"])
+    assert result.exit_code == 0, result.output
+    assert "Devin integration" in result.output
+    assert (project / ".devin" / "mcp_config.json").is_file()
+    assert not (project / ".cursor" / "mcp.json").exists()
+
+
+def test_devin_hook_blocks_lowercase_read(project: Path, monkeypatch: pytest.MonkeyPatch):
+    index_path(project)
+    monkeypatch.chdir(project)
+    payload = json.dumps({
+        "tool_name": "read",
+        "tool_input": {"file_path": str(project / "src" / "sample.py")},
+    })
+    runner = CliRunner()
+    result = runner.invoke(main, ["hook", "devin", "pre-tool-use"], input=payload)
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["decision"] == "block"
+    assert "hc_file_context" in data["reason"]
+    assert "greet" in data["reason"]
+
+
+def test_devin_hook_blocks_grep(project: Path, monkeypatch: pytest.MonkeyPatch):
+    index_path(project)
+    monkeypatch.chdir(project)
+    payload = json.dumps({
+        "tool_name": "grep",
+        "tool_input": {"pattern": "greet"},
+    })
+    runner = CliRunner()
+    result = runner.invoke(main, ["hook", "devin", "pre-tool-use"], input=payload)
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["decision"] == "block"
+    assert "hc_search" in data["reason"]
