@@ -16,6 +16,7 @@ from . import __version__
 from .config import get_index_path
 from .filters import DEFAULT_QUERY_LIMIT, validate_languages, validate_paging, validate_path_filter
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
+from .snippet import SnippetError, read_snippet
 from .store import Store
 
 
@@ -285,6 +286,22 @@ def cmd_file_context(path: str):
         click.echo()
 
 
+# ── hc snippet ───────────────────────────────────────────────────────────────
+
+@main.command("snippet")
+@click.argument("path")
+@click.argument("line_start", type=int)
+@click.argument("line_end", type=int)
+def cmd_snippet(path: str, line_start: int, line_end: int):
+    """Read PATH lines LINE_START..LINE_END from disk (1-based, inclusive)."""
+    root = Path.cwd()
+    try:
+        click.echo(read_snippet(root, path, line_start, line_end))
+    except SnippetError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
+
 # ── hc serve ─────────────────────────────────────────────────────────────────
 
 @main.command("serve")
@@ -351,7 +368,7 @@ MCP_ENTRY = {
     "type": "stdio",
 }
 
-MCP_TOOLS = ["hc_search", "hc_symbol", "hc_file_context", "hc_status"]
+MCP_TOOLS = ["hc_search", "hc_symbol", "hc_file_context", "hc_snippet", "hc_status"]
 
 
 def _merge_mcp_settings(settings_path: Path) -> None:

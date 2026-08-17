@@ -7,8 +7,8 @@ Index-based code navigation. Same context quality, fewer tokens.
 ## What's included
 
 - `.hybrid-coco/index.db` in the project workspace
-- `hc index` / `hc update` / `hc query` / `hc symbol` / `hc file-context`
-- MCP tools: `hc_search`, `hc_symbol`, `hc_file_context`, `hc_status`
+- `hc index` / `hc update` / `hc query` / `hc symbol` / `hc file-context` / `hc snippet`
+- MCP tools: `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_status`
 - Claude Code hooks and skills (`hybrid-coco`, `hc-init`, `hc-search`)
 
 ## Decision tree
@@ -18,12 +18,12 @@ Need to understand a file?
   └─ hc_file_context("path")          ← always first
        ├─ answer found in signatures/structure? → DONE
        └─ need a specific function body?
-            └─ Read("path", offset=N, limit=M)  ← targeted, not full file
+            └─ hc_snippet("path", line_start, line_end)  ← bounded slice
 
 Need to find something across the codebase?
   ├─ know the name? → hc_symbol("name")
   └─ know a pattern? → hc_search("query")
-       └─ found it? → Read("path", offset=N, limit=M)  ← only that section
+       └─ found lines? → hc_snippet("path", line_start, line_end)
 
 Need to read a full file?
   └─ only if you need most of its content for the task
@@ -35,11 +35,12 @@ Need to read a full file?
 | Tool | Use when |
 |---|---|
 | `hc_file_context("path")` | Before any Read — get all symbols, signatures, line numbers |
+| `hc_snippet("path", start, end)` | Read only the lines you need (1-based, inclusive) |
 | `hc_search("query", path?, lang?, offset?, limit?)` | Before any Grep — FTS5 search; optional path/lang filters AND together |
 | `hc_symbol("name", path?, lang?, offset?, limit?)` | Exact/prefix symbol lookup; same optional filters |
 | `hc_status()` | Check what's indexed before exploring |
 
-## The two-step Read pattern
+## The two-step snippet pattern
 
 **Instead of reading an entire file to find one function:**
 
@@ -49,10 +50,10 @@ hc_file_context("src/some_file.py")
 → "my_function @ line 47"
 
 # Step 2 — read only what you need
-Read("src/some_file.py", offset=47, limit=40)
+hc_snippet("src/some_file.py", 47, 86)
 ```
 
-**Rule**: after `hc_file_context`, use `Read` with `offset` + `limit` to read only the specific symbol you need. Never read from line 1 unless the task requires the whole file.
+**Rule**: after `hc_file_context` or `hc_symbol`, use `hc_snippet` with the symbol's line range. Avoid full-file Read unless the task needs most of the file.
 
 ## When full Read is justified
 

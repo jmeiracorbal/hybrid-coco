@@ -95,6 +95,26 @@ Imports (4):
 
 ---
 
+### `hc_snippet`
+
+**Input:** `path: str`, `line_start: int`, `line_end: int`
+
+Reads a bounded slice from disk at query time (not from SQLite). `line_start` and `line_end` are 1-based and inclusive. Path is relative to the project root (same as indexed paths).
+
+**Response example:**
+
+```
+File: src/git.rs:45-67 (23 lines)
+
+pub fn run(args: GitArgs) -> Result<()> {
+    ...
+}
+```
+
+**Errors:** returns `Error: file not found: …`, `Error: line_start N out of range …`, or `Error: line_end N out of range …`.
+
+---
+
 ### `hc_status`
 
 **Input:** (none)

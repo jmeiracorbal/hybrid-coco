@@ -21,6 +21,7 @@ This skill **queries** only. It does not run `hc init` / `hc index` unless tools
 | Exact or prefix symbol name | `hc_symbol(name=...)` |
 | Concept / keyword / docstring text | `hc_search(query=...)` |
 | What is in one file | `hc_file_context(path=...)` |
+| Read a known line range | `hc_snippet(path=..., line_start=..., line_end=...)` |
 | Is anything indexed? | `hc_status()` |
 
 ## Filters and pagination
@@ -42,7 +43,7 @@ Omit a filter for no restriction.
 
 Group by file when useful. For each hit show: kind, path, line range, signature, docstring if any.
 
-After a hit, if the body is needed: `Read(path, offset=line_start, limit=…)` — not the whole file.
+After a hit, if the body is needed: `hc_snippet(path, line_start, line_end)` from the symbol range — not the whole file.
 
 ## CLI fallback (same project root)
 
@@ -50,5 +51,6 @@ After a hit, if the body is needed: `Read(path, offset=line_start, limit=…)` �
 hc symbol <NAME> [--path PAT] [--lang LANG]...
 hc query <TEXT>  [--path PAT] [--lang LANG]...
 hc file-context <PATH>
+hc snippet <PATH> <START> <END>
 hc status
 ```

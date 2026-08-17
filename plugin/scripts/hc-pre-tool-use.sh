@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # hybrid-coco PreToolUse hook — blocking
-# SOURCE OF TRUTH: src/hybrid_coco/assets/hooks/hc-pre-tool-use.sh
-# Do not edit directly — edit the asset and sync here.
 # Intercepts Read/Grep on indexed content and returns hc data directly.
 # Blocks the tool so Claude uses hc output instead of reading the full file.
 
@@ -38,10 +36,24 @@ if [ "$TOOL_NAME" = "Read" ]; then
   IS_INDEXED=$(sqlite3 "$INDEX_DB" "SELECT 1 FROM files WHERE path='$REL_PATH' LIMIT 1" 2>/dev/null)
   [ "$IS_INDEXED" = "1" ] || exit 0
 
+  OFFSET=$(echo "$INPUT" | jq -r '.tool_input.offset // empty' 2>/dev/null)
+  LIMIT=$(echo "$INPUT" | jq -r '.tool_input.limit // empty' 2>/dev/null)
+
+  if [ -n "$OFFSET" ] && [ -n "$LIMIT" ] && [ "$OFFSET" != "null" ] && [ "$LIMIT" != "null" ]; then
+    LINE_END=$((OFFSET + LIMIT - 1))
+    HC_OUTPUT=$(cd "$PROJECT_ROOT" && hc snippet "$REL_PATH" "$OFFSET" "$LINE_END" 2>/dev/null) || exit 0
+    [ -n "$HC_OUTPUT" ] || exit 0
+
+    REASON=$(printf '[hybrid-coco] Snippet for %s:\n\n%s\n\nUse hc_snippet when line ranges are known.' \
+      "$REL_PATH" "$HC_OUTPUT" | jq -Rs .)
+    printf '{"decision":"block","reason":%s}\n' "$REASON"
+    exit 0
+  fi
+
   HC_OUTPUT=$(cd "$PROJECT_ROOT" && hc file-context "$REL_PATH" 2>/dev/null) || exit 0
   [ -n "$HC_OUTPUT" ] || exit 0
 
-  REASON=$(printf '[hybrid-coco] Symbols for %s:\n\n%s\n\nUse hc_file_context for targeted reads.' \
+  REASON=$(printf '[hybrid-coco] Symbols for %s:\n\n%s\n\nUse hc_file_context first, then hc_snippet for the body.' \
     "$REL_PATH" "$HC_OUTPUT" | jq -Rs .)
   printf '{"decision":"block","reason":%s}\n' "$REASON"
   exit 0
@@ -59,7 +71,7 @@ if [ "$TOOL_NAME" = "Grep" ]; then
   HC_OUTPUT=$(cd "$PROJECT_ROOT" && hc query "$PATTERN" 2>/dev/null) || exit 0
   [ -n "$HC_OUTPUT" ] || exit 0
 
-  REASON=$(printf '[hybrid-coco] Search results for "%s":\n\n%s\n\nUse hc_search for further queries.' \
+  REASON=$(printf '[hybrid-coco] Search results for "%s":\n\n%s\n\nUse hc_search, then hc_snippet for matched ranges.' \
     "$PATTERN" "$HC_OUTPUT" | jq -Rs .)
   printf '{"decision":"block","reason":%s}\n' "$REASON"
   exit 0
