@@ -18,6 +18,7 @@ from .filters import DEFAULT_QUERY_LIMIT, validate_languages, validate_paging, v
 from .indexer import build_exclude_spec, ensure_hc_gitignore, index_path
 from .snippet import SnippetError, read_snippet
 from .store import Store
+from .structure import StructureError, search_structure, validate_structure_kind
 
 
 def _parse_exclude(exclude: tuple[str, ...]) -> tuple[str, ...]:
@@ -302,6 +303,53 @@ def cmd_snippet(path: str, line_start: int, line_end: int):
         sys.exit(1)
 
 
+# ── hc structure ─────────────────────────────────────────────────────────────
+
+@main.command("structure")
+@click.argument("kind")
+@click.option("--path", "path_filter", default=None, help="gitignore-style path filter")
+@click.option("--lang", multiple=True, help="Language filter (repeatable), e.g. python")
+@click.option("--offset", default=0, show_default=True, type=int)
+@click.option("--limit", default=DEFAULT_QUERY_LIMIT, show_default=True, type=int)
+def cmd_structure(kind: str, path_filter: str | None, lang: tuple, offset: int, limit: int):
+    """Find code by tree-sitter shape: function, method, class, or import."""
+    try:
+        validate_structure_kind(kind)
+    except StructureError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
+    root = Path.cwd()
+    store = _require_store(root)
+    try:
+        results = search_structure(
+            root,
+            store,
+            kind,
+            path=path_filter,
+            languages=lang,
+            offset=offset,
+            limit=limit,
+        )
+    except (StructureError, ValueError) as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+    finally:
+        store.close()
+
+    if not results:
+        click.echo("No results.")
+        return
+
+    for match in results:
+        label = match.name if match.name else match.node_type
+        click.echo(
+            f"[{match.path}:{match.line_start}] {match.kind} {label} ({match.language})"
+        )
+        if match.preview:
+            click.echo(f"  {match.preview}")
+
+
 # ── hc serve ─────────────────────────────────────────────────────────────────
 
 @main.command("serve")
@@ -368,7 +416,14 @@ MCP_ENTRY = {
     "type": "stdio",
 }
 
-MCP_TOOLS = ["hc_search", "hc_symbol", "hc_file_context", "hc_snippet", "hc_status"]
+MCP_TOOLS = [
+    "hc_search",
+    "hc_symbol",
+    "hc_file_context",
+    "hc_snippet",
+    "hc_structure",
+    "hc_status",
+]
 
 
 def _merge_mcp_settings(settings_path: Path) -> None:

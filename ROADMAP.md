@@ -20,8 +20,8 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | Indexer | Incremental SHA-256 walk, gitignore-aware, `--exclude` patterns |
 | Store | SQLite files + symbols + FTS5 trigram |
 | Languages | Python, JavaScript, TypeScript/TSX, Rust, Go, Java, C, C++, C#, Kotlin, Swift |
-| CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `serve`, `doctor`, `reset`, `init` |
-| MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_status` (path/lang/offset/limit on search & symbol) |
+| CLI | `index`, `update`, `status`, `query`, `symbol`, `file-context`, `snippet`, `structure`, `serve`, `doctor`, `reset`, `init` |
+| MCP | `hc_search`, `hc_symbol`, `hc_file_context`, `hc_snippet`, `hc_structure`, `hc_status` (path/lang/offset/limit on search, symbol & structure) |
 | Hooks | Blocking PreToolUse (Read/Grep → hc), PostToolUse, SessionStart awareness + incremental update |
 | Packaging | PyPI, `install.sh`, Claude Code plugin marketplace |
 
@@ -35,8 +35,8 @@ Local, deterministic code intelligence for AI agents: index once with tree-sitte
 | 04 | Language coverage (Go, Java, then C/C++) | **done** |
 | 05 | Agent skill owns lifecycle | **done** |
 | 06 | Symbol body / targeted snippet | **done** |
-| 07 | Structural search (tree-sitter patterns) | **next** |
-| 08 | Settings file (include / exclude) | later |
+| 07 | Structural search (tree-sitter patterns) | **done** |
+| 08 | Settings file (include / exclude) | **next** |
 | 09 | Embeddings optional layer (`sqlite-vec`) | deferred |
 
 ---
@@ -123,6 +123,8 @@ Preferred design: query-time disk read via `hc_snippet(path, line_start, line_en
 ## Phase 07 — Structural search (later)
 
 Tree-sitter query / by-example patterns over the working tree (or indexed ASTs), without embeddings. Useful when FTS keywords fail but shape is known (`fn …`, `class …`). Depends on solid multi-language parsers (phase 04).
+
+**Done:** `hc structure KIND` CLI + `hc_structure` MCP over indexed files; kinds `function`, `method`, `class`, `import`; optional `path`/`lang`/pagination filters; per-language tree-sitter queries.
 
 ## Phase 08 — Settings file (later)
 

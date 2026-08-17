@@ -115,6 +115,22 @@ pub fn run(args: GitArgs) -> Result<()> {
 
 ---
 
+### `hc_structure`
+
+**Input:** `kind: str`, `path?: str`, `lang?: list[str]`, `offset?: int = 0`, `limit?: int = 20`
+
+Structural search by tree-sitter shape over indexed files. `kind` must be one of `function`, `method`, `class`, `import`. Same optional filters and pagination as `hc_search`.
+
+**Response example:**
+
+```
+# hc_structure('function')
+[src/main.rs:10] function run (rust)
+  pub fn run(args: GitArgs) -> Result<()>
+```
+
+---
+
 ### `hc_status`
 
 **Input:** (none)
